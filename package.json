@@ -1,0 +1,14 @@
+{
+  "name": "voice-note-notion-app-backend",
+  "version": "1.0.0",
+  "description": "Backend for Voice Note to Notion App",
+  "main": "api/transcribe-and-save.js",
+  "type": "module",
+  "scripts": {
+    "start": "vercel dev"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.14.1",
+    "@notionhq/client": "^2.2.14"
+  }
+}
