@@ -376,22 +376,36 @@
         // Event listener for Copy All Text button
         copyTextBtn.addEventListener('click', () => {
             if (transcriptOutput.value.trim() !== '') {
-                // Select the text in the textarea
+                // To ensure the copy command works, we temporarily select the text
+                // The `document.execCommand('copy')` is then invoked on the selection.
+                const originalSelectionStart = transcriptOutput.selectionStart;
+                const originalSelectionEnd = transcriptOutput.selectionEnd;
+
                 transcriptOutput.select();
                 transcriptOutput.setSelectionRange(0, 99999); /* For mobile devices */
 
                 try {
-                    // Copy the text to the clipboard
-                    document.execCommand('copy');
-                    statusMessage.textContent = 'Text copied to clipboard!';
+                    const success = document.execCommand('copy');
+                    if (success) {
+                        statusMessage.textContent = 'Text copied to clipboard!';
+                    } else {
+                        statusMessage.textContent = 'Failed to copy text. Please copy manually.';
+                        console.error('document.execCommand("copy") returned false.');
+                    }
                 } catch (err) {
-                    console.error('Failed to copy text: ', err);
+                    console.error('Failed to copy text (exception): ', err);
                     statusMessage.textContent = 'Failed to copy text. Please copy manually.';
+                } finally {
+                    // Deselect the text and restore original cursor position
+                    transcriptOutput.setSelectionRange(originalSelectionStart, originalSelectionEnd);
+                    // Ensure focus is not lost or is returned gracefully if needed
+                    transcriptOutput.focus();
                 }
             } else {
                 statusMessage.textContent = 'No text to copy.';
             }
         });
+
 
         // Event listener for Save to Notion button
         saveToNotionBtn.addEventListener('click', async () => {
