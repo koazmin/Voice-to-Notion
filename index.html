@@ -10,20 +10,41 @@
         /* Custom styles for a cleaner look */
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f0f2f5;
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
             padding: 20px;
+            /* Robot and Scientific Theme Background */
+            background-image: url('https://placehold.co/1920x1080/0A192F/E0E0E0?text=Scientific+Robot+Background'); /* Placeholder - Replace with your actual image */
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed; /* Ensures background stays fixed during scroll */
+            position: relative; /* Needed for pseudo-element positioning */
+            z-index: 0; /* Ensure content is above background */
         }
+
+        /* Overlay for lower transparency effect */
+        body::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(10, 25, 47, 0.7); /* Dark blue overlay with 70% opacity */
+            z-index: -1; /* Place behind content */
+        }
+
         .container {
-            background-color: #ffffff;
+            background-color: rgba(255, 255, 255, 0.9); /* Slightly transparent white container */
             border-radius: 16px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
             padding: 30px;
             width: 100%;
             max-width: 600px;
+            z-index: 1; /* Ensure container is above the overlay */
+            position: relative; /* Needed for z-index to work */
         }
         .button-group button {
             transition: background-color 0.2s, transform 0.1s;
