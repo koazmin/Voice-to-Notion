@@ -76,7 +76,7 @@
             <button id="sendToNotion" disabled
                     class="bg-purple-600 text-white px-6 py-3 rounded-xl shadow-lg opacity-50 cursor-not-allowed hover:bg-purple-700 focus:outline-none focus:ring-4 focus:ring-purple-300 flex items-center justify-center">
                 <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v6a2 2 0 002 2h3m0-1V7m0 0h8a2 2 0 012 2v6a2 2 0 01-2 2h-8m0-9v9m6-10l4 4-4 4"></path></svg>
-                Transcribe & Save
+                Transcribe Audio
             </button>
         </div>
 
@@ -111,12 +111,12 @@
         const startRecordBtn = document.getElementById('startRecord');
         const stopRecordBtn = document.getElementById('stopRecord');
         const playRecordBtn = document.getElementById('playRecord');
-        const sendToNotionBtn = document.getElementById('sendToNotion');
+        const sendToNotionBtn = document.getElementById('sendToNotion'); // Now "Transcribe Audio" button
         const audioPlayer = document.getElementById('audioPlayer');
         const transcriptOutput = document.getElementById('transcriptOutput');
         const statusMessage = document.getElementById('statusMessage');
         const manualTranscriptInput = document.getElementById('manualTranscript');
-        const sendManualToNotionBtn = document.getElementById('sendManualToNotion');
+        const sendManualToNotionBtn = document.getElementById('sendManualToNotion'); // Now "Save Manual Text to Notion" button
 
         // MediaRecorder variables
         let mediaRecorder;
@@ -126,62 +126,96 @@
 
         // Function to update button states and messages
         function updateUI(state) {
+            // Disable all by default
             startRecordBtn.disabled = true;
             stopRecordBtn.disabled = true;
             playRecordBtn.disabled = true;
-            sendToNotionBtn.disabled = true;
-            sendManualToNotionBtn.disabled = true;
+            sendToNotionBtn.disabled = true; // This button now triggers transcription and populates textarea
+            sendManualToNotionBtn.disabled = true; // This button saves to Notion
 
+            // Add opacity/cursor for disabled buttons
             startRecordBtn.classList.add('opacity-50', 'cursor-not-allowed');
             stopRecordBtn.classList.add('opacity-50', 'cursor-not-allowed');
             playRecordBtn.classList.add('opacity-50', 'cursor-not-allowed');
             sendToNotionBtn.classList.add('opacity-50', 'cursor-not-allowed');
             sendManualToNotionBtn.classList.add('opacity-50', 'cursor-not-allowed');
 
+            // Remove recording indicator animation
             startRecordBtn.classList.remove('recording-indicator');
-            stopRecordBtn.classList.remove('recording-indicator');
+
+            // Reset visibility/content of audio player and clear previous audio
+            audioPlayer.classList.add('hidden');
+            audioPlayer.src = '';
+
 
             switch (state) {
                 case 'ready':
                     startRecordBtn.disabled = false;
-                    sendManualToNotionBtn.disabled = false;
+                    sendManualToNotionBtn.disabled = false; // Allow manual text input from start
                     startRecordBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                     sendManualToNotionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    statusMessage.textContent = 'Ready to record.';
-                    transcriptOutput.textContent = 'Your transcribed text will appear here.';
-                    audioPlayer.classList.add('hidden');
-                    audioPlayer.src = ''; // Clear previous audio
-                    audioBlob = null;
+                    statusMessage.textContent = 'Ready to record or enter text.';
+                    transcriptOutput.textContent = 'Your transcribed or manually entered text will appear here.';
+                    manualTranscriptInput.value = ''; // Clear manual input
+                    audioBlob = null; // Clear audio data
                     audioUrl = null;
                     audioChunks = [];
                     break;
                 case 'recording':
                     stopRecordBtn.disabled = false;
                     stopRecordBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    startRecordBtn.classList.add('recording-indicator'); // Visual indicator for recording
+                    startRecordBtn.classList.add('recording-indicator'); // Visual indicator
                     statusMessage.textContent = 'Recording... Say something!';
                     break;
                 case 'recorded':
+                    // After recording, can play, or transcribe. Manual input is still an option.
                     playRecordBtn.disabled = false;
-                    sendToNotionBtn.disabled = false;
-                    sendManualToNotionBtn.disabled = false; // Allow manual send even after recording
+                    sendToNotionBtn.disabled = false; // Now this button means "Transcribe"
+                    sendManualToNotionBtn.disabled = false; // Manual input always available
                     playRecordBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                     sendToNotionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                     sendManualToNotionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    audioPlayer.classList.remove('hidden');
-                    statusMessage.textContent = 'Recording stopped. Play or send.';
+                    audioPlayer.classList.remove('hidden'); // Show audio player
+                    statusMessage.textContent = 'Recording stopped. Play, transcribe, or enter text.';
                     break;
                 case 'playing':
                     statusMessage.textContent = 'Playing recording...';
+                    // Buttons might temporarily stay as 'recorded' state
                     break;
-                case 'transcribing':
-                    statusMessage.textContent = 'Transcribing and saving to Notion...';
+                case 'transcribing': // When sending audio for transcription
+                    statusMessage.textContent = 'Transcribing audio... Please wait.';
+                    transcriptOutput.textContent = 'Transcribing...';
+                    break;
+                case 'transcribed_for_review': // New state: audio transcribed, ready for review
+                    startRecordBtn.disabled = false; // Can start a new recording
+                    playRecordBtn.disabled = (audioUrl === null); // Play if audio exists
+                    sendManualToNotionBtn.disabled = false; // Always allow manual save
+                    startRecordBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    sendManualToNotionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    if (audioUrl) playRecordBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    statusMessage.textContent = 'Transcript ready for review. Edit and save or record new.';
+                    audioPlayer.classList.remove('hidden'); // Keep audio player visible if audio was recorded
+                    break;
+                case 'saving_manual': // When sending manual text to Notion
+                    statusMessage.textContent = 'Saving text to Notion...';
                     break;
                 case 'saved':
                     statusMessage.textContent = 'Successfully saved to Notion!';
+                    manualTranscriptInput.value = ''; // Clear manual input after saving
+                    // The transcriptOutput will show the saved text, no need to append 'Your saved text'
+                    updateUI('ready'); // Revert to ready state after successful save
                     break;
                 case 'error':
                     statusMessage.textContent = 'An error occurred. Please try again.';
+                    // Revert to a functional state where user can try again or record new
+                    startRecordBtn.disabled = false;
+                    sendManualToNotionBtn.disabled = false;
+                    startRecordBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    sendManualToNotionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    if (audioUrl) {
+                        playRecordBtn.disabled = false;
+                        playRecordBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    }
                     break;
             }
         }
@@ -243,14 +277,14 @@
             }
         });
 
-        // Event listener for sending audio to Notion via API
+        // Event listener for Transcribe Audio button (formerly sendToNotion)
         sendToNotionBtn.addEventListener('click', async () => {
             if (!audioBlob) {
-                statusMessage.textContent = 'No audio recorded to send.';
+                statusMessage.textContent = 'No audio recorded to transcribe.';
                 return;
             }
 
-            updateUI('transcribing');
+            updateUI('transcribing'); // Set status to transcribing
 
             // Convert Blob to Base64
             const reader = new FileReader();
@@ -273,34 +307,36 @@
                     const data = await response.json();
 
                     if (response.ok) {
-                        transcriptOutput.textContent = data.transcript || 'No transcript returned.';
-                        updateUI('saved');
+                        const transcribedText = data.transcript || 'No transcript returned.';
+                        transcriptOutput.textContent = transcribedText;
+                        manualTranscriptInput.value = transcribedText; // Populate manual input with transcribed text
+                        updateUI('transcribed_for_review'); // New state: ready for review
                     } else {
                         throw new Error(data.error || 'Unknown error from API.');
                     }
                 } catch (error) {
-                    console.error('Error sending audio to API:', error);
+                    console.error('Error sending audio to API for transcription:', error);
                     transcriptOutput.textContent = `Error: ${error.message}`;
                     updateUI('error');
                 }
             };
             reader.onerror = (error) => {
                 console.error('Error reading audio Blob:', error);
-                statusMessage.textContent = 'Error processing audio for upload.';
+                statusMessage.textContent = 'Error processing audio for transcription.';
                 updateUI('error');
             };
         });
 
-        // Event listener for sending manual transcript to Notion
+        // Event listener for Save Manual Text to Notion button
         sendManualToNotionBtn.addEventListener('click', async () => {
-            const manualText = manualTranscriptInput.value.trim();
+            const textToSave = manualTranscriptInput.value.trim();
 
-            if (!manualText) {
-                statusMessage.textContent = 'Please enter some text in the manual input field.';
+            if (!textToSave) {
+                statusMessage.textContent = 'Please enter some text to save to Notion.';
                 return;
             }
 
-            updateUI('transcribing'); // Re-use status for sending
+            updateUI('saving_manual'); // New status for saving manual text
 
             try {
                 const response = await fetch('/api/transcribe-and-save', {
@@ -309,21 +345,20 @@
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        transcript: manualText, // Send only the transcript
+                        transcript: textToSave, // Send the text from the manual input
                     }),
                 });
 
                 const data = await response.json();
 
                 if (response.ok) {
-                    transcriptOutput.textContent = data.transcript || manualText; // Display sent text
-                    manualTranscriptInput.value = ''; // Clear input field
+                    transcriptOutput.textContent = `Saved to Notion: ${data.transcript || textToSave}`;
                     updateUI('saved');
                 } else {
                     throw new Error(data.error || 'Unknown error from API.');
                 }
             } catch (error) {
-                console.error('Error sending manual text to API:', error);
+                console.error('Error sending text to Notion:', error);
                 transcriptOutput.textContent = `Error: ${error.message}`;
                 updateUI('error');
             }
