@@ -73,7 +73,7 @@
                 Play Recording
             </button>
 
-            <button id="sendToNotion" disabled
+            <button id="transcribeAudioBtn" disabled
                     class="bg-purple-600 text-white px-6 py-3 rounded-xl shadow-lg opacity-50 cursor-not-allowed hover:bg-purple-700 focus:outline-none focus:ring-4 focus:ring-purple-300 flex items-center justify-center">
                 <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v6a2 2 0 002 2h3m0-1V7m0 0h8a2 2 0 012 2v6a2 2 0 01-2 2h-8m0-9v9m6-10l4 4-4 4"></path></svg>
                 Transcribe Audio
@@ -83,24 +83,29 @@
         <!-- Audio element for playback -->
         <audio id="audioPlayer" class="w-full mt-4 hidden" controls></audio>
 
-        <!-- Transcript Display Area -->
+        <!-- Transcript Display and Edit Area -->
         <div class="w-full bg-gray-50 p-4 rounded-xl border border-gray-200 mt-6">
             <h2 class="text-xl font-semibold text-gray-700 mb-3">Transcript:</h2>
-            <p id="transcriptOutput" class="text-gray-800 text-base leading-relaxed break-words min-h-[80px]">
-                Your transcribed text will appear here.
-            </p>
+            <!-- Changed from <p> to <textarea> and made it editable -->
+            <textarea id="transcriptOutput"
+                      class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 resize-y text-gray-800 text-base leading-relaxed min-h-[120px]"
+                      rows="6"
+                      placeholder="Your transcribed or manually entered text will appear here. You can edit it directly."
+            ></textarea>
         </div>
 
-        <!-- Manual Transcript Input (Optional) -->
-        <div class="w-full mt-4">
-            <h2 class="text-xl font-semibold text-gray-700 mb-3">Manual Input (Optional):</h2>
-            <textarea id="manualTranscript"
-                      class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 resize-y"
-                      rows="4" placeholder="Enter text here to save it directly to Notion without transcribing audio..."></textarea>
-            <button id="sendManualToNotion"
-                    class="mt-3 bg-indigo-600 text-white px-6 py-3 rounded-xl shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 flex items-center justify-center w-full">
+        <!-- Action Buttons for Transcript -->
+        <div class="flex flex-wrap justify-center gap-4 w-full mt-4">
+            <button id="copyTextBtn" disabled
+                    class="bg-gray-700 text-white px-6 py-3 rounded-xl shadow-lg opacity-50 cursor-not-allowed hover:bg-gray-800 focus:outline-none focus:ring-4 focus:ring-gray-300 flex items-center justify-center">
+                <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4a2 2 0 012 2v4m-5 4l-4-4"></path></svg>
+                Copy All Text
+            </button>
+
+            <button id="saveToNotionBtn" disabled
+                    class="bg-indigo-600 text-white px-6 py-3 rounded-xl shadow-lg opacity-50 cursor-not-allowed hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 flex items-center justify-center">
                 <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                Save Manual Text to Notion
+                Save to Notion
             </button>
         </div>
 
@@ -111,12 +116,12 @@
         const startRecordBtn = document.getElementById('startRecord');
         const stopRecordBtn = document.getElementById('stopRecord');
         const playRecordBtn = document.getElementById('playRecord');
-        const sendToNotionBtn = document.getElementById('sendToNotion'); // Now "Transcribe Audio" button
+        const transcribeAudioBtn = document.getElementById('transcribeAudioBtn'); // Renamed from sendToNotion
         const audioPlayer = document.getElementById('audioPlayer');
-        const transcriptOutput = document.getElementById('transcriptOutput');
+        const transcriptOutput = document.getElementById('transcriptOutput'); // Now a textarea
         const statusMessage = document.getElementById('statusMessage');
-        const manualTranscriptInput = document.getElementById('manualTranscript');
-        const sendManualToNotionBtn = document.getElementById('sendManualToNotion'); // Now "Save Manual Text to Notion" button
+        const copyTextBtn = document.getElementById('copyTextBtn'); // New button
+        const saveToNotionBtn = document.getElementById('saveToNotionBtn'); // New button
 
         // MediaRecorder variables
         let mediaRecorder;
@@ -130,15 +135,17 @@
             startRecordBtn.disabled = true;
             stopRecordBtn.disabled = true;
             playRecordBtn.disabled = true;
-            sendToNotionBtn.disabled = true; // This button now triggers transcription and populates textarea
-            sendManualToNotionBtn.disabled = true; // This button saves to Notion
+            transcribeAudioBtn.disabled = true;
+            copyTextBtn.disabled = true;
+            saveToNotionBtn.disabled = true;
 
             // Add opacity/cursor for disabled buttons
             startRecordBtn.classList.add('opacity-50', 'cursor-not-allowed');
             stopRecordBtn.classList.add('opacity-50', 'cursor-not-allowed');
             playRecordBtn.classList.add('opacity-50', 'cursor-not-allowed');
-            sendToNotionBtn.classList.add('opacity-50', 'cursor-not-allowed');
-            sendManualToNotionBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            transcribeAudioBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            copyTextBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            saveToNotionBtn.classList.add('opacity-50', 'cursor-not-allowed');
 
             // Remove recording indicator animation
             startRecordBtn.classList.remove('recording-indicator');
@@ -151,15 +158,19 @@
             switch (state) {
                 case 'ready':
                     startRecordBtn.disabled = false;
-                    sendManualToNotionBtn.disabled = false; // Allow manual text input from start
                     startRecordBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    sendManualToNotionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    statusMessage.textContent = 'Ready to record or enter text.';
-                    transcriptOutput.textContent = 'Your transcribed or manually entered text will appear here.';
-                    manualTranscriptInput.value = ''; // Clear manual input
+                    statusMessage.textContent = 'Ready to record or type your note.';
+                    transcriptOutput.value = ''; // Clear transcript output
                     audioBlob = null; // Clear audio data
                     audioUrl = null;
                     audioChunks = [];
+                    // If there's already text in transcriptOutput, allow copy/save
+                    if (transcriptOutput.value.trim() !== '') {
+                        copyTextBtn.disabled = false;
+                        saveToNotionBtn.disabled = false;
+                        copyTextBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                        saveToNotionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    }
                     break;
                 case 'recording':
                     stopRecordBtn.disabled = false;
@@ -168,15 +179,20 @@
                     statusMessage.textContent = 'Recording... Say something!';
                     break;
                 case 'recorded':
-                    // After recording, can play, or transcribe. Manual input is still an option.
+                    // After recording, can play, or transcribe.
                     playRecordBtn.disabled = false;
-                    sendToNotionBtn.disabled = false; // Now this button means "Transcribe"
-                    sendManualToNotionBtn.disabled = false; // Manual input always available
+                    transcribeAudioBtn.disabled = false;
                     playRecordBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    sendToNotionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    sendManualToNotionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    transcribeAudioBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                     audioPlayer.classList.remove('hidden'); // Show audio player
-                    statusMessage.textContent = 'Recording stopped. Play, transcribe, or enter text.';
+                    statusMessage.textContent = 'Recording stopped. Play or transcribe.';
+                    // If there's existing text in the transcript, still allow copy/save
+                    if (transcriptOutput.value.trim() !== '') {
+                        copyTextBtn.disabled = false;
+                        saveToNotionBtn.disabled = false;
+                        copyTextBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                        saveToNotionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    }
                     break;
                 case 'playing':
                     statusMessage.textContent = 'Playing recording...';
@@ -184,34 +200,40 @@
                     break;
                 case 'transcribing': // When sending audio for transcription
                     statusMessage.textContent = 'Transcribing audio... Please wait.';
-                    transcriptOutput.textContent = 'Transcribing...';
+                    transcriptOutput.value = 'Transcribing...'; // Display a loading message
                     break;
                 case 'transcribed_for_review': // New state: audio transcribed, ready for review
                     startRecordBtn.disabled = false; // Can start a new recording
                     playRecordBtn.disabled = (audioUrl === null); // Play if audio exists
-                    sendManualToNotionBtn.disabled = false; // Always allow manual save
+                    copyTextBtn.disabled = false; // Allow copying
+                    saveToNotionBtn.disabled = false; // Allow saving
                     startRecordBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    sendManualToNotionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    copyTextBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    saveToNotionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                     if (audioUrl) playRecordBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    statusMessage.textContent = 'Transcript ready for review. Edit and save or record new.';
+                    statusMessage.textContent = 'Transcript ready for review. Edit, copy, or save.';
                     audioPlayer.classList.remove('hidden'); // Keep audio player visible if audio was recorded
                     break;
-                case 'saving_manual': // When sending manual text to Notion
+                case 'saving_to_notion': // When saving text to Notion
                     statusMessage.textContent = 'Saving text to Notion...';
                     break;
                 case 'saved':
                     statusMessage.textContent = 'Successfully saved to Notion!';
-                    manualTranscriptInput.value = ''; // Clear manual input after saving
-                    // The transcriptOutput will show the saved text, no need to append 'Your saved text'
+                    transcriptOutput.value = ''; // Clear text area after successful save
                     updateUI('ready'); // Revert to ready state after successful save
                     break;
                 case 'error':
                     statusMessage.textContent = 'An error occurred. Please try again.';
                     // Revert to a functional state where user can try again or record new
                     startRecordBtn.disabled = false;
-                    sendManualToNotionBtn.disabled = false;
                     startRecordBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    sendManualToNotionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    // If there's text, allow copy/save
+                    if (transcriptOutput.value.trim() !== '') {
+                        copyTextBtn.disabled = false;
+                        saveToNotionBtn.disabled = false;
+                        copyTextBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                        saveToNotionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    }
                     if (audioUrl) {
                         playRecordBtn.disabled = false;
                         playRecordBtn.classList.remove('opacity-50', 'cursor-not-allowed');
@@ -223,6 +245,20 @@
         // Initialize UI on load
         document.addEventListener('DOMContentLoaded', () => {
             updateUI('ready');
+            // Allow manual typing in transcriptOutput to enable copy/save buttons
+            transcriptOutput.addEventListener('input', () => {
+                if (transcriptOutput.value.trim() !== '') {
+                    copyTextBtn.disabled = false;
+                    saveToNotionBtn.disabled = false;
+                    copyTextBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    saveToNotionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                } else {
+                    copyTextBtn.disabled = true;
+                    saveToNotionBtn.disabled = true;
+                    copyTextBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                    saveToNotionBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+            });
         });
 
         // Event listener for starting recording
@@ -240,6 +276,8 @@
                     audioBlob = new Blob(audioChunks, { type: 'audio/webm' }); // WebM is widely supported
                     audioUrl = URL.createObjectURL(audioBlob);
                     audioPlayer.src = audioUrl;
+                    audioPlayer.load(); // Explicitly load the audio after setting the source
+                    console.log('Audio Blob created:', audioBlob.type, audioBlob.size, 'bytes'); // Debugging
                     updateUI('recorded');
                     // Stop the stream tracks after recording is done
                     stream.getTracks().forEach(track => track.stop());
@@ -251,7 +289,7 @@
             } catch (err) {
                 console.error('Error accessing microphone:', err);
                 statusMessage.textContent = 'Error: Could not access microphone. Please allow access.';
-                updateUI('ready'); // Revert to ready state
+                updateUI('error'); // Set to error state
             }
         });
 
@@ -267,6 +305,15 @@
             if (audioUrl) {
                 audioPlayer.play();
                 updateUI('playing');
+                // Optional: Listen for play errors if still experiencing issues
+                audioPlayer.onerror = (e) => {
+                    console.error('Audio playback error!', e);
+                    statusMessage.textContent = 'Error playing audio. Please try recording again.';
+                    updateUI('recorded'); // Go back to recorded state to allow retry
+                };
+            } else {
+                statusMessage.textContent = 'No recording available to play.';
+                console.warn('Attempted to play audio, but audioUrl is null.');
             }
         });
 
@@ -277,8 +324,8 @@
             }
         });
 
-        // Event listener for Transcribe Audio button (formerly sendToNotion)
-        sendToNotionBtn.addEventListener('click', async () => {
+        // Event listener for Transcribe Audio button
+        transcribeAudioBtn.addEventListener('click', async () => {
             if (!audioBlob) {
                 statusMessage.textContent = 'No audio recorded to transcribe.';
                 return;
@@ -308,15 +355,14 @@
 
                     if (response.ok) {
                         const transcribedText = data.transcript || 'No transcript returned.';
-                        transcriptOutput.textContent = transcribedText;
-                        manualTranscriptInput.value = transcribedText; // Populate manual input with transcribed text
+                        transcriptOutput.value = transcribedText; // Populate textarea
                         updateUI('transcribed_for_review'); // New state: ready for review
                     } else {
                         throw new Error(data.error || 'Unknown error from API.');
                     }
                 } catch (error) {
                     console.error('Error sending audio to API for transcription:', error);
-                    transcriptOutput.textContent = `Error: ${error.message}`;
+                    transcriptOutput.value = `Error: ${error.message}`; // Display error in textarea
                     updateUI('error');
                 }
             };
@@ -327,16 +373,36 @@
             };
         });
 
-        // Event listener for Save Manual Text to Notion button
-        sendManualToNotionBtn.addEventListener('click', async () => {
-            const textToSave = manualTranscriptInput.value.trim();
+        // Event listener for Copy All Text button
+        copyTextBtn.addEventListener('click', () => {
+            if (transcriptOutput.value.trim() !== '') {
+                // Select the text in the textarea
+                transcriptOutput.select();
+                transcriptOutput.setSelectionRange(0, 99999); /* For mobile devices */
+
+                try {
+                    // Copy the text to the clipboard
+                    document.execCommand('copy');
+                    statusMessage.textContent = 'Text copied to clipboard!';
+                } catch (err) {
+                    console.error('Failed to copy text: ', err);
+                    statusMessage.textContent = 'Failed to copy text. Please copy manually.';
+                }
+            } else {
+                statusMessage.textContent = 'No text to copy.';
+            }
+        });
+
+        // Event listener for Save to Notion button
+        saveToNotionBtn.addEventListener('click', async () => {
+            const textToSave = transcriptOutput.value.trim();
 
             if (!textToSave) {
-                statusMessage.textContent = 'Please enter some text to save to Notion.';
+                statusMessage.textContent = 'Please enter or transcribe some text to save to Notion.';
                 return;
             }
 
-            updateUI('saving_manual'); // New status for saving manual text
+            updateUI('saving_to_notion'); // New status for saving manual text
 
             try {
                 const response = await fetch('/api/transcribe-and-save', {
@@ -345,21 +411,21 @@
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        transcript: textToSave, // Send the text from the manual input
+                        transcript: textToSave, // Send the text from the (now editable) transcript output
                     }),
                 });
 
                 const data = await response.json();
 
                 if (response.ok) {
-                    transcriptOutput.textContent = `Saved to Notion: ${data.transcript || textToSave}`;
+                    transcriptOutput.value = `Saved to Notion: ${data.transcript || textToSave}`;
                     updateUI('saved');
                 } else {
                     throw new Error(data.error || 'Unknown error from API.');
                 }
             } catch (error) {
-                console.error('Error sending text to Notion:', error);
-                transcriptOutput.textContent = `Error: ${error.message}`;
+                console.error('Error saving text to Notion:', error);
+                transcriptOutput.value = `Error: ${error.message}`; // Display error in textarea
                 updateUI('error');
             }
         });
