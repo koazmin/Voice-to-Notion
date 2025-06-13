@@ -53,7 +53,7 @@
             Ready to record.
         </div>
 
-        <!-- Recording and Playback Controls -->
+        <!-- Recording and Transcribing Controls -->
         <div class="button-group flex flex-wrap justify-center gap-4 w-full">
             <button id="startRecord"
                     class="bg-blue-600 text-white px-6 py-3 rounded-xl shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300 flex items-center justify-center">
@@ -67,12 +67,6 @@
                 Stop Recording
             </button>
 
-            <button id="playRecord" disabled
-                    class="bg-green-500 text-white px-6 py-3 rounded-xl shadow-lg opacity-50 cursor-not-allowed hover:bg-green-600 focus:outline-none focus:ring-4 focus:ring-green-300 flex items-center justify-center">
-                <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.109l-3.253 2.169A1 1 0 0110 13.5v-7a1 1 0 011.5-.831l3.253 2.169a1 1 0 010 1.662z"></path></svg>
-                Play Recording
-            </button>
-
             <button id="transcribeAudioBtn" disabled
                     class="bg-purple-600 text-white px-6 py-3 rounded-xl shadow-lg opacity-50 cursor-not-allowed hover:bg-purple-700 focus:outline-none focus:ring-4 focus:ring-purple-300 flex items-center justify-center">
                 <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v6a2 2 0 002 2h3m0-1V7m0 0h8a2 2 0 012 2v6a2 2 0 01-2 2h-8m0-9v9m6-10l4 4-4 4"></path></svg>
@@ -80,13 +74,12 @@
             </button>
         </div>
 
-        <!-- Audio element for playback -->
+        <!-- Audio element (kept hidden for internal mediaRecorder use) -->
         <audio id="audioPlayer" class="w-full mt-4 hidden" controls></audio>
 
         <!-- Transcript Display and Edit Area -->
         <div class="w-full bg-gray-50 p-4 rounded-xl border border-gray-200 mt-6">
             <h2 class="text-xl font-semibold text-gray-700 mb-3">Transcript:</h2>
-            <!-- Changed from <p> to <textarea> and made it editable -->
             <textarea id="transcriptOutput"
                       class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 resize-y text-gray-800 text-base leading-relaxed min-h-[120px]"
                       rows="6"
@@ -115,44 +108,40 @@
         // DOM Elements
         const startRecordBtn = document.getElementById('startRecord');
         const stopRecordBtn = document.getElementById('stopRecord');
-        const playRecordBtn = document.getElementById('playRecord');
-        const transcribeAudioBtn = document.getElementById('transcribeAudioBtn'); // Renamed from sendToNotion
-        const audioPlayer = document.getElementById('audioPlayer');
-        const transcriptOutput = document.getElementById('transcriptOutput'); // Now a textarea
+        const transcribeAudioBtn = document.getElementById('transcribeAudioBtn');
+        const audioPlayer = document.getElementById('audioPlayer'); // Still needed for MediaRecorder context
+        const transcriptOutput = document.getElementById('transcriptOutput');
         const statusMessage = document.getElementById('statusMessage');
-        const copyTextBtn = document.getElementById('copyTextBtn'); // New button
-        const saveToNotionBtn = document.getElementById('saveToNotionBtn'); // New button
+        const copyTextBtn = document.getElementById('copyTextBtn');
+        const saveToNotionBtn = document.getElementById('saveToNotionBtn');
 
         // MediaRecorder variables
         let mediaRecorder;
         let audioChunks = [];
-        let audioBlob = null; // Stores the final audio Blob
-        let audioUrl = null; // Stores the URL for playback
+        let audioBlob = null;
+        let audioUrl = null; // Still used to hold object URL even if not for download/playback
 
         // Function to update button states and messages
         function updateUI(state) {
-            // Disable all by default
             startRecordBtn.disabled = true;
             stopRecordBtn.disabled = true;
-            playRecordBtn.disabled = true;
             transcribeAudioBtn.disabled = true;
             copyTextBtn.disabled = true;
             saveToNotionBtn.disabled = true;
 
-            // Add opacity/cursor for disabled buttons
             startRecordBtn.classList.add('opacity-50', 'cursor-not-allowed');
             stopRecordBtn.classList.add('opacity-50', 'cursor-not-allowed');
-            playRecordBtn.classList.add('opacity-50', 'cursor-not-allowed');
             transcribeAudioBtn.classList.add('opacity-50', 'cursor-not-allowed');
             copyTextBtn.classList.add('opacity-50', 'cursor-not-allowed');
             saveToNotionBtn.classList.add('opacity-50', 'cursor-not-allowed');
 
-            // Remove recording indicator animation
             startRecordBtn.classList.remove('recording-indicator');
 
-            // Reset visibility/content of audio player and clear previous audio
-            audioPlayer.classList.add('hidden');
-            audioPlayer.src = '';
+            audioPlayer.src = ''; // Clear previous audio src
+            if (audioUrl) {
+                URL.revokeObjectURL(audioUrl); // Clean up previous object URL
+                audioUrl = null;
+            }
 
 
             switch (state) {
@@ -160,9 +149,8 @@
                     startRecordBtn.disabled = false;
                     startRecordBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                     statusMessage.textContent = 'Ready to record or type your note.';
-                    transcriptOutput.value = ''; // Clear transcript output
-                    audioBlob = null; // Clear audio data
-                    audioUrl = null;
+                    transcriptOutput.value = '';
+                    audioBlob = null;
                     audioChunks = [];
                     // If there's already text in transcriptOutput, allow copy/save
                     if (transcriptOutput.value.trim() !== '') {
@@ -175,18 +163,13 @@
                 case 'recording':
                     stopRecordBtn.disabled = false;
                     stopRecordBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    startRecordBtn.classList.add('recording-indicator'); // Visual indicator
+                    startRecordBtn.classList.add('recording-indicator');
                     statusMessage.textContent = 'Recording... Say something!';
                     break;
                 case 'recorded':
-                    // After recording, can play, or transcribe.
-                    playRecordBtn.disabled = false;
                     transcribeAudioBtn.disabled = false;
-                    playRecordBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                     transcribeAudioBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    audioPlayer.classList.remove('hidden'); // Show audio player
-                    statusMessage.textContent = 'Recording stopped. Play or transcribe.';
-                    // If there's existing text in the transcript, still allow copy/save
+                    statusMessage.textContent = 'Recording stopped. Transcribe now.';
                     if (transcriptOutput.value.trim() !== '') {
                         copyTextBtn.disabled = false;
                         saveToNotionBtn.disabled = false;
@@ -194,49 +177,36 @@
                         saveToNotionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                     }
                     break;
-                case 'playing':
-                    statusMessage.textContent = 'Playing recording...';
-                    // Buttons might temporarily stay as 'recorded' state
-                    break;
-                case 'transcribing': // When sending audio for transcription
+                case 'transcribing':
                     statusMessage.textContent = 'Transcribing audio... Please wait.';
-                    transcriptOutput.value = 'Transcribing...'; // Display a loading message
+                    transcriptOutput.value = 'Transcribing...';
                     break;
-                case 'transcribed_for_review': // New state: audio transcribed, ready for review
-                    startRecordBtn.disabled = false; // Can start a new recording
-                    playRecordBtn.disabled = (audioUrl === null); // Play if audio exists
-                    copyTextBtn.disabled = false; // Allow copying
-                    saveToNotionBtn.disabled = false; // Allow saving
+                case 'transcribed_for_review':
+                    startRecordBtn.disabled = false;
+                    copyTextBtn.disabled = false;
+                    saveToNotionBtn.disabled = false;
                     startRecordBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                     copyTextBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                     saveToNotionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    if (audioUrl) playRecordBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                     statusMessage.textContent = 'Transcript ready for review. Edit, copy, or save.';
-                    audioPlayer.classList.remove('hidden'); // Keep audio player visible if audio was recorded
                     break;
-                case 'saving_to_notion': // When saving text to Notion
+                case 'saving_to_notion':
                     statusMessage.textContent = 'Saving text to Notion...';
                     break;
                 case 'saved':
                     statusMessage.textContent = 'Successfully saved to Notion!';
-                    transcriptOutput.value = ''; // Clear text area after successful save
-                    updateUI('ready'); // Revert to ready state after successful save
+                    transcriptOutput.value = '';
+                    updateUI('ready');
                     break;
                 case 'error':
                     statusMessage.textContent = 'An error occurred. Please try again.';
-                    // Revert to a functional state where user can try again or record new
                     startRecordBtn.disabled = false;
                     startRecordBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    // If there's text, allow copy/save
                     if (transcriptOutput.value.trim() !== '') {
                         copyTextBtn.disabled = false;
                         saveToNotionBtn.disabled = false;
                         copyTextBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                         saveToNotionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    }
-                    if (audioUrl) {
-                        playRecordBtn.disabled = false;
-                        playRecordBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                     }
                     break;
             }
@@ -245,7 +215,6 @@
         // Initialize UI on load
         document.addEventListener('DOMContentLoaded', () => {
             updateUI('ready');
-            // Allow manual typing in transcriptOutput to enable copy/save buttons
             transcriptOutput.addEventListener('input', () => {
                 if (transcriptOutput.value.trim() !== '') {
                     copyTextBtn.disabled = false;
@@ -273,13 +242,18 @@
                 };
 
                 mediaRecorder.onstop = () => {
-                    audioBlob = new Blob(audioChunks, { type: 'audio/webm' }); // WebM is widely supported
+                    audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    if (audioBlob.size === 0) {
+                        console.error('Recorded audio Blob is empty!');
+                        statusMessage.textContent = 'Recording failed: No audio captured. Try again.';
+                        updateUI('error');
+                        stream.getTracks().forEach(track => track.stop());
+                        return;
+                    }
+
                     audioUrl = URL.createObjectURL(audioBlob);
-                    audioPlayer.src = audioUrl;
-                    audioPlayer.load(); // Explicitly load the audio after setting the source
-                    console.log('Audio Blob created:', audioBlob.type, audioBlob.size, 'bytes'); // Debugging
+                    console.log('Audio Blob created:', audioBlob.type, audioBlob.size, 'bytes. URL:', audioUrl);
                     updateUI('recorded');
-                    // Stop the stream tracks after recording is done
                     stream.getTracks().forEach(track => track.stop());
                 };
 
@@ -289,7 +263,7 @@
             } catch (err) {
                 console.error('Error accessing microphone:', err);
                 statusMessage.textContent = 'Error: Could not access microphone. Please allow access.';
-                updateUI('error'); // Set to error state
+                updateUI('error');
             }
         });
 
@@ -300,30 +274,6 @@
             }
         });
 
-        // Event listener for playing recording
-        playRecordBtn.addEventListener('click', () => {
-            if (audioUrl) {
-                audioPlayer.play();
-                updateUI('playing');
-                // Optional: Listen for play errors if still experiencing issues
-                audioPlayer.onerror = (e) => {
-                    console.error('Audio playback error!', e);
-                    statusMessage.textContent = 'Error playing audio. Please try recording again.';
-                    updateUI('recorded'); // Go back to recorded state to allow retry
-                };
-            } else {
-                statusMessage.textContent = 'No recording available to play.';
-                console.warn('Attempted to play audio, but audioUrl is null.');
-            }
-        });
-
-        // Reset UI when audio playback ends
-        audioPlayer.addEventListener('ended', () => {
-            if (audioUrl) { // Only if there was audio to play
-                updateUI('recorded'); // Go back to recorded state
-            }
-        });
-
         // Event listener for Transcribe Audio button
         transcribeAudioBtn.addEventListener('click', async () => {
             if (!audioBlob) {
@@ -331,13 +281,12 @@
                 return;
             }
 
-            updateUI('transcribing'); // Set status to transcribing
+            updateUI('transcribing');
 
-            // Convert Blob to Base64
             const reader = new FileReader();
             reader.readAsDataURL(audioBlob);
             reader.onloadend = async () => {
-                const base64Audio = reader.result.split(',')[1]; // Get base64 string after 'data:audio/webm;base64,'
+                const base64Audio = reader.result.split(',')[1];
 
                 try {
                     const response = await fetch('/api/transcribe-and-save', {
@@ -355,14 +304,14 @@
 
                     if (response.ok) {
                         const transcribedText = data.transcript || 'No transcript returned.';
-                        transcriptOutput.value = transcribedText; // Populate textarea
-                        updateUI('transcribed_for_review'); // New state: ready for review
+                        transcriptOutput.value = transcribedText;
+                        updateUI('transcribed_for_review');
                     } else {
                         throw new Error(data.error || 'Unknown error from API.');
                     }
                 } catch (error) {
                     console.error('Error sending audio to API for transcription:', error);
-                    transcriptOutput.value = `Error: ${error.message}`; // Display error in textarea
+                    transcriptOutput.value = `Error: ${error.message}`;
                     updateUI('error');
                 }
             };
@@ -376,13 +325,11 @@
         // Event listener for Copy All Text button
         copyTextBtn.addEventListener('click', () => {
             if (transcriptOutput.value.trim() !== '') {
-                // To ensure the copy command works, we temporarily select the text
-                // The `document.execCommand('copy')` is then invoked on the selection.
                 const originalSelectionStart = transcriptOutput.selectionStart;
                 const originalSelectionEnd = transcriptOutput.selectionEnd;
 
                 transcriptOutput.select();
-                transcriptOutput.setSelectionRange(0, 99999); /* For mobile devices */
+                transcriptOutput.setSelectionRange(0, 99999);
 
                 try {
                     const success = document.execCommand('copy');
@@ -396,9 +343,7 @@
                     console.error('Failed to copy text (exception): ', err);
                     statusMessage.textContent = 'Failed to copy text. Please copy manually.';
                 } finally {
-                    // Deselect the text and restore original cursor position
                     transcriptOutput.setSelectionRange(originalSelectionStart, originalSelectionEnd);
-                    // Ensure focus is not lost or is returned gracefully if needed
                     transcriptOutput.focus();
                 }
             } else {
@@ -416,7 +361,7 @@
                 return;
             }
 
-            updateUI('saving_to_notion'); // New status for saving manual text
+            updateUI('saving_to_notion');
 
             try {
                 const response = await fetch('/api/transcribe-and-save', {
@@ -425,7 +370,7 @@
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        transcript: textToSave, // Send the text from the (now editable) transcript output
+                        transcript: textToSave,
                     }),
                 });
 
@@ -439,7 +384,7 @@
                 }
             } catch (error) {
                 console.error('Error saving text to Notion:', error);
-                transcriptOutput.value = `Error: ${error.message}`; // Display error in textarea
+                transcriptOutput.value = `Error: ${error.message}`;
                 updateUI('error');
             }
         });
