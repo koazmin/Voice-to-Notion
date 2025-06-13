@@ -22,11 +22,10 @@ export default async function handler(req, res) {
         const { audio, mimeType, transcript } = req.body;
         let finalTranscript = transcript;
 
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
         if (audio && mimeType) {
             // If audio is provided, transcribe it
-            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
-            // Prepare the audio part for Gemini
             const audioPart = {
                 inlineData: {
                     data: audio,
@@ -47,7 +46,32 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: 'No audio or transcript provided for processing.' });
         }
         
-        // At this point, finalTranscript holds either the newly transcribed text or the user-provided text.
+        // --- NEW: Spell-checking and correction using Gemini AI ---
+        let correctedText = finalTranscript; // Start with the raw transcript or user-provided text
+
+        if (finalTranscript && finalTranscript.trim() !== '') {
+            try {
+                // Prompt Gemini to correct spelling and grammar
+                const correctionPrompt = `Correct any spelling or grammar errors in the following Burmese text. Only provide the corrected text, nothing else:\n\n${finalTranscript}`;
+                const correctionResult = await model.generateContent(correctionPrompt);
+                const correctionResponse = correctionResult.response;
+                correctedText = correctionResponse.text();
+                
+                // Add a simple log to see if correction happened (for debugging backend)
+                console.log("Original Transcript:", finalTranscript);
+                console.log("Corrected Text:", correctedText);
+
+            } catch (correctionError) {
+                console.error('Gemini spell correction failed:', correctionError);
+                // Optionally, you might want to return a specific error or just proceed with original transcript
+                // For now, we'll proceed with the original transcript if correction fails.
+                correctedText = finalTranscript; 
+                console.warn('Proceeding with original transcript due to correction error.');
+            }
+        }
+        // --- END NEW ---
+
+        // At this point, correctedText holds the transcribed/user-provided text, now spell-checked.
 
         // Save to Notion
         if (!NOTION_DATABASE_ID) {
@@ -71,7 +95,6 @@ export default async function handler(req, res) {
                 database_id: NOTION_DATABASE_ID,
             },
             properties: {
-                // Assuming your Notion database has a 'Name' property of type 'Title'
                 'Name': {
                     title: [
                         {
@@ -81,13 +104,11 @@ export default async function handler(req, res) {
                         },
                     ],
                 },
-                // You can add other properties here if your Notion database has them.
-                // For example, a 'Content' rich_text property:
                 'Content': { // Replace 'Content' with your actual property name in Notion
                     rich_text: [
                         {
                             text: {
-                                content: finalTranscript,
+                                content: correctedText, // Use the corrected text here
                             },
                         },
                     ],
@@ -96,9 +117,9 @@ export default async function handler(req, res) {
         });
 
         res.status(200).json({ 
-            transcript: finalTranscript, 
+            transcript: correctedText, // Return the corrected text to the frontend
             notionPageId: notionResponse.id,
-            message: 'Successfully transcribed and saved to Notion.'
+            message: 'Successfully transcribed, spell-checked, and saved to Notion.'
         });
 
     } catch (error) {
