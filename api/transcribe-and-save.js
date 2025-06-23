@@ -4,11 +4,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Client as NotionClient } from "@notionhq/client";
 
-// Ensure your environment variables are set in Vercel:
-// GEMINI_API_KEY
-// NOTION_API_KEY
-// NOTION_DATABASE_ID
-
+// Environment variables (ensure these are set in Vercel)
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const notion = new NotionClient({ auth: process.env.NOTION_API_KEY });
 const NOTION_DATABASE_ID = process.env.NOTION_DATABASE_ID;
@@ -19,13 +15,23 @@ export default async function handler(req, res) {
     }
 
     try {
+        // Optional API key protection - comment/remove if not needed
+        // if (req.headers['x-api-key'] !== process.env.API_KEY) {
+        //     return res.status(401).json({ error: 'Unauthorized' });
+        // }
+
         const { audio, mimeType, transcript } = req.body;
         let finalTranscript = transcript;
 
         const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
+        // Step 1: Transcribe audio if provided
         if (audio && mimeType) {
-            // If audio is provided, transcribe it
+            const allowedMimeTypes = ['audio/mpeg', 'audio/wav', 'audio/mp4', 'audio/ogg', 'audio/webm']; 
+            if (!allowedMimeTypes.includes(mimeType)) {
+                return res.status(400).json({ error: 'Unsupported audio mime type.' });
+            }
+
             const audioPart = {
                 inlineData: {
                     data: audio,
@@ -33,100 +39,109 @@ export default async function handler(req, res) {
                 }
             };
 
-            const prompt = "Transcribe the following Burmese audio."; // Specific prompt for Burmese
+            const prompt = "Transcribe the following Burmese audio.";
             const result = await model.generateContent([prompt, audioPart]);
-            const response = result.response;
-            finalTranscript = response.text();
+            finalTranscript = result.response.text();
 
             if (!finalTranscript) {
                 return res.status(500).json({ error: 'Failed to get transcription from Gemini.' });
             }
         } else if (!transcript) {
-            // If neither audio nor transcript is provided, it's an invalid request
-            return res.status(400).json({ error: 'No audio or transcript provided for processing.' });
+            return res.status(400).json({ error: 'No audio or text provided for processing.' });
         }
-        
-        // --- NEW: Spell-checking and correction using Gemini AI ---
-        let correctedText = finalTranscript; // Start with the raw transcript or user-provided text
 
+        // Step 2: Spell-check the transcript
+        let correctedText = finalTranscript;
         if (finalTranscript && finalTranscript.trim() !== '') {
             try {
-                // Prompt Gemini to correct spelling and grammar
                 const correctionPrompt = `Correct any spelling or grammar errors in the following Burmese text. Only provide the corrected text, nothing else:\n\n${finalTranscript}`;
                 const correctionResult = await model.generateContent(correctionPrompt);
-                const correctionResponse = correctionResult.response;
-                correctedText = correctionResponse.text();
-                
-                // Add a simple log to see if correction happened (for debugging backend)
-                console.log("Original Transcript:", finalTranscript);
-                console.log("Corrected Text:", correctedText);
-
-            } catch (correctionError) {
-                console.error('Gemini spell correction failed:', correctionError);
-                // Optionally, you might want to return a specific error or just proceed with original transcript
-                // For now, we'll proceed with the original transcript if correction fails.
-                correctedText = finalTranscript; 
-                console.warn('Proceeding with original transcript due to correction error.');
+                correctedText = correctionResult.response.text();
+            } catch (error) { 
+                console.error('Gemini spell correction failed:', error);
+                correctedText = finalTranscript;
             }
         }
-        // --- END NEW ---
 
-        // At this point, correctedText holds the transcribed/user-provided text, now spell-checked.
+        // Step 3: Analyze expense details
+        let expenseData = { amount: null, category: 'Other', description: 'Voice Note' };
 
-        // Save to Notion
-        if (!NOTION_DATABASE_ID) {
-            console.error("NOTION_DATABASE_ID is not set.");
-            return res.status(500).json({ error: 'Notion database ID is not configured on the server.' });
+        if (correctedText && correctedText.trim() !== '') {
+            try {
+                // MODIFIED PROMPT: Emphasize returning ONLY JSON
+                const expensePrompt = `From the following Burmese text, identify if it describes an expense or income. If it's an expense, extract the expense amount as a number (or null if not found), the category (choose from: Food, Transport, Utilities, Mahar Unity, Bavin, Rent, Entertainment, Shopping, Health, Education, Bills, Communication, Income, Other), and a brief description. If it's income, extract the amount as a number and set category to 'Income'. Return ONLY the JSON object with keys "amount" (number or null), "category" (string), and "description" (string). Do NOT include any other text or explanation. Example: {"amount": 1000, "category": "Food", "description": "Lunch at restaurant"}.
+                \n\nText: "${correctedText}"`;
+
+                const expenseResult = await model.generateContent(expensePrompt);
+                let rawJson = expenseResult.response.text();
+
+                // Clean possible code block formatting from Gemini (e.g., ```json...```)
+                rawJson = rawJson.replace(/```json|```/g, '').trim();
+
+                // Attempt to parse the JSON. If it fails, log the raw output for debugging.
+                try {
+                    expenseData = JSON.parse(rawJson);
+                } catch (jsonParseError) {
+                    console.error("Failed to parse Gemini's JSON response. Raw output:", rawJson, "Error:", jsonParseError);
+                    console.warn("Gemini might not have returned valid JSON. Using default expenseData.");
+                    // Fallback to default expenseData if JSON is invalid
+                    expenseData = { amount: null, category: 'Other', description: 'Voice Note' };
+                }
+
+                // Validate extracted data
+                const allowedCategories = ["Food", "Transport", "Utilities", "Mahar Unity", "Bavin", "Rent", "Entertainment", "Shopping", "Health", "Education", "Bills", "Communication", "Income", "Other"];
+                if (!expenseData.category || !allowedCategories.includes(expenseData.category)) {
+                    expenseData.category = 'Other';
+                }
+                if (typeof expenseData.amount !== 'number' && expenseData.amount !== null) {
+                    expenseData.amount = null;
+                }
+                if (!expenseData.description || expenseData.description.trim() === '') {
+                    expenseData.description = correctedText.substring(0, 50) + (correctedText.length > 50 ? '...' : '');
+                }
+            } catch (error) {
+                console.error('Gemini expense analysis failed:', error);
+                expenseData = { amount: null, category: 'Other', description: 'Voice Note' };
+            }
         }
 
-        const date = new Date();
-        const formattedDate = date.toLocaleString('en-US', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-        
-        const pageTitle = `Voice Note - ${formattedDate}`;
+        // Step 4: Save to Notion
+        if (!NOTION_DATABASE_ID) {
+            return res.status(500).json({ error: 'Notion database ID not configured.' });
+        }
+
+        const notionDate = new Date().toISOString().split('T')[0];
 
         const notionResponse = await notion.pages.create({
-            parent: {
-                database_id: NOTION_DATABASE_ID,
-            },
+            parent: { database_id: NOTION_DATABASE_ID },
             properties: {
-                'Name': {
-                    title: [
-                        {
-                            text: {
-                                content: pageTitle,
-                            },
-                        },
-                    ],
+                'Description': {
+                    title: [{ text: { content: `${expenseData.description || 'Voice Note'}` } }],
                 },
-                'Content': { // Replace 'Content' with your actual property name in Notion
-                    rich_text: [
-                        {
-                            text: {
-                                content: correctedText, // Use the corrected text here
-                            },
-                        },
-                    ],
+                'Amount': {
+                    number: expenseData.amount !== null ? expenseData.amount : 0,
+                },
+                'Category': {
+                    select: { name: expenseData.category || 'Other' },
+                },
+                'Date': {
+                    date: { start: notionDate },
+                },
+                'Voice Memo': {
+                    rich_text: [{ text: { content: correctedText } }],
                 },
             },
         });
 
-        res.status(200).json({ 
-            transcript: correctedText, // Return the corrected text to the frontend
+        return res.status(201).json({
+            transcript: correctedText,
+            expenseDetails: expenseData,
             notionPageId: notionResponse.id,
-            message: 'Successfully transcribed, spell-checked, and saved to Notion.'
+            message: 'Successfully analyzed, categorized, and saved to Notion.',
         });
 
     } catch (error) {
         console.error('API Error:', error);
-        res.status(500).json({ 
-            error: 'Failed to process request.', 
-            details: error.message 
-        });
+        return res.status(500).json({ error: 'Failed to process request.', details: error.message });
     }
 }
