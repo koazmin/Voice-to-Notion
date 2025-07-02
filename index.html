@@ -14,7 +14,7 @@
             flex-direction: column; /* Changed to column to allow footer at bottom */
             justify-content: center;
             align-items: center;
-            min-height: 100vh;
+            min-height: 100vh; /* Changed from 50vh to 100vh for better centering */
             padding: 20px;
             /* Dark Mode Theme Background */
             background-color: #1a202c; /* Dark charcoal */
@@ -44,7 +44,7 @@
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); /* Stronger shadow for dark mode */
             padding: 30px;
             width: 100%;
-            max-width: 600px;
+            max-width: 1024px; /* Increased max-width for a wider layout (equivalent to Tailwind's max-w-5xl) */
             z-index: 1;
             position: relative;
             border: 1px solid rgba(71, 85, 105, 0.5); /* Subtle border */
@@ -107,8 +107,8 @@
     </style>
 </head>
 <body>
-    <div class="container flex flex-col items-center space-y-6">
-        <h1 class="text-3xl font-bold text-gray-100 mb-4">Voice Note App</h1>
+    <div class="container flex flex-col items-center space-y-4"> <!-- Reduced space-y from 6 to 4 -->
+        <h1 class="text-3xl font-bold text-gray-100 mb-2">Voice Note App</h1> <!-- Reduced mb-4 to mb-2 -->
 
         <!-- Status Message Area -->
         <div id="statusMessage" class="text-center text-sm font-medium text-gray-300 min-h-[20px] status-fade-in">
