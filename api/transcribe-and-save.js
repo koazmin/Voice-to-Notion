@@ -23,10 +23,6 @@ export default async function handler(req, res) {
         let finalTranscript = transcript;
 
         // Optimization 1: Using 'gemini-1.5-pro' for potentially higher accuracy.
-        // While 'flash' models are faster, 'pro' models often offer better quality
-        // for nuanced language tasks, especially for low-resource languages like Burmese.
-        // Consider 'gemini-2.0-flash' if response speed is absolutely critical and you've
-        // tested its accuracy for your specific audio types and found it sufficient.
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" }); 
 
         if (audio && mimeType) {
@@ -38,7 +34,6 @@ export default async function handler(req, res) {
             };
 
             // Optimization 2: More specific and directive prompt for Burmese transcription.
-            // This guides Gemini to prioritize accuracy, natural flow, and proper formatting.
             const transcriptionPrompt = `Transcribe the following Burmese audio into accurate, natural-sounding text. Focus on correct spelling, grammar, and punctuation. Ensure the transcription reflects the spoken content precisely.`;
             
             console.log("Sending audio to Gemini for transcription with enhanced prompt...");
@@ -74,19 +69,16 @@ export default async function handler(req, res) {
                 const rawCorrectedText = correctionResponse.text();
 
                 // Optimization 4: Basic post-processing to clean Gemini's correction output.
-                // Sometimes, despite instructions, LLMs might add conversational filler.
-                // This attempts to extract just the core corrected text.
                 if (rawCorrectedText.includes("Text to correct:") || rawCorrectedText.includes("Corrected text:") || rawCorrectedText.includes("Here is the corrected text:")) {
                     const lines = rawCorrectedText.split('\n').map(line => line.trim()).filter(line => line.length > 0);
                     let potentialCorrectedLine = '';
-                    // Iterate from the end to find the most likely corrected text
                     for (let i = lines.length - 1; i >= 0; i--) {
                         if (!lines[i].includes("Text to correct:") && !lines[i].includes("Corrected text:") && !lines[i].includes("Here is the corrected text:")) {
                             potentialCorrectedLine = lines[i];
                             break;
                         }
                     }
-                    correctedText = potentialCorrectedLine || rawCorrectedText; // Fallback to raw if extraction fails
+                    correctedText = potentialCorrectedLine || rawCorrectedText;
                 } else {
                     correctedText = rawCorrectedText;
                 }
@@ -96,14 +88,10 @@ export default async function handler(req, res) {
 
             } catch (correctionError) {
                 console.error('Gemini spell correction failed:', correctionError);
-                // In case of correction failure, proceed with the original transcript
                 correctedText = finalTranscript; 
                 console.warn('Proceeding with original transcript due to correction error.');
             }
         }
-        // --- END Spell-checking ---
-
-        // At this point, correctedText holds the transcribed/user-provided text, now spell-checked.
 
         // Save to Notion
         if (!NOTION_DATABASE_ID) {
@@ -130,7 +118,7 @@ export default async function handler(req, res) {
                 database_id: NOTION_DATABASE_ID,
             },
             properties: {
-                'Name': { // Ensure 'Name' is your title property in Notion
+                'Name': {
                     title: [
                         {
                             text: {
@@ -139,46 +127,28 @@ export default async function handler(req, res) {
                         },
                     ],
                 },
-                'Content': { // Replace 'Content' with your actual rich text property name in Notion
+                'Content': {
                     rich_text: [
                         {
                             text: {
-                                content: correctedText, // Use the corrected text here
+                                content: correctedText,
                             },
                         },
                     ],
                 },
-                // Optional: Add more properties if your Notion database has them
-                // 'Language': {
-                //     select: {
-                //         name: 'Burmese', 
-                //     },
-                // },
-                // 'Source': {
-                //     select: {
-                //         name: 'Voice Note App',
-                //     },
-                // },
             },
-            // Important Note: Notion rich_text properties have character limits.
-            // If 'correctedText' can be very long (e.g., thousands of characters),
-            // you might need to split it into multiple blocks and append them to the page
-            // using `notion.blocks.children.append` after the page creation.
-            // For typical voice notes, the current approach for 'rich_text' property should suffice.
         });
 
         console.log("Successfully saved to Notion. Page ID:", notionResponse.id);
 
         res.status(200).json({ 
-            transcript: correctedText, // Return the corrected text to the frontend
+            transcript: correctedText,
             notionPageId: notionResponse.id,
             message: 'Successfully transcribed, spell-checked, and saved to Notion.'
         });
 
     } catch (error) {
         console.error('API Error:', error);
-        // In a production environment, avoid exposing full error stack traces to clients.
-        // This example shows it for development/debugging purposes.
         res.status(500).json({ 
             error: 'Failed to process request.', 
             details: error.message,
