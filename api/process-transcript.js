@@ -31,9 +31,6 @@ export default async function handler(req, res) {
             case 'summarize':
                 prompt = `Summarize the following Burmese text into a concise paragraph. Focus on the main points and key information. Do not add any introductory or concluding remarks.\n\nText:\n${text}`;
                 break;
-            case 'keywords':
-                prompt = `From the following Burmese text, extract up to 10 most relevant keywords or key phrases. Provide them as a comma-separated list, without any introductory or concluding remarks.\n\nText:\n${text}`;
-                break;
             case 'translate':
                 prompt = `Translate the following Burmese text into clear and natural English. Provide only the English translation, without any introductory or concluding remarks.\n\nText:\n${text}`;
                 break;
@@ -44,15 +41,11 @@ export default async function handler(req, res) {
         console.log(`Processing text for action: ${action}`);
         const result = await model.generateContent(prompt);
         const response = result.response;
-        resultText = response.text();
+        resultText = response.text().trim();
 
         // Basic post-processing to remove potential leading/trailing whitespace or unwanted phrases
-        resultText = resultText.trim();
-        // More robust cleaning if LLM adds unwanted prefixes like "Summary:", "Keywords:", "Translation:"
         if (action === 'summarize' && resultText.startsWith('Summary:')) {
             resultText = resultText.substring('Summary:'.length).trim();
-        } else if (action === 'keywords' && resultText.startsWith('Keywords:')) {
-            resultText = resultText.substring('Keywords:'.length).trim();
         } else if (action === 'translate' && resultText.startsWith('Translation:')) {
             resultText = resultText.substring('Translation:'.length).trim();
         }
