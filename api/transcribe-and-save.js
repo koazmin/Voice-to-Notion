@@ -10,7 +10,7 @@ import { Client as NotionClient } from "@notionhq/client";
 // NOTION_DATABASE_ID
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const notion = new new NotionClient({ auth: process.env.NOTION_API_KEY });
+const notion = new NotionClient({ auth: process.env.NOTION_API_KEY });
 const NOTION_DATABASE_ID = process.env.NOTION_DATABASE_ID;
 
 export default async function handler(req, res) {
@@ -64,7 +64,8 @@ export default async function handler(req, res) {
             try {
                 // Optimization 3: Refined prompt for correction.
                 // This prompt emphasizes providing *only* the corrected text and aims for natural, fluent Burmese.
-                const correctionPrompt = `Review the following Burmese text for any spelling, grammar, or punctuation errors. Provide only the corrected and polished Burmese text, without any additional comments, explanations, or introductory/concluding phrases. The goal is to make the text as natural and fluent as possible for a native Burmese speaker.\n\nText to correct:\n${finalTranscript}`;
+                // It now focuses on spelling and punctuation, and natural fluency, without explicitly mentioning grammar.
+                const correctionPrompt = `Review the following Burmese text for any spelling or punctuation errors. Also, ensure the text is natural and fluent for a native Burmese speaker. Provide only the corrected and polished Burmese text, without any additional comments, explanations, or introductory/concluding phrases.\n\nText to correct:\n${finalTranscript}`;
                 
                 console.log("Sending transcript to Gemini for spell/grammar correction with refined prompt...");
                 const correctionResult = await model.generateContent(correctionPrompt);
