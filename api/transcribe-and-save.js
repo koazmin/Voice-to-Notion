@@ -22,10 +22,13 @@ export default async function handler(req, res) {
         const { audio, mimeType, transcript } = req.body;
         let finalTranscript = transcript;
 
-        // Optimization 1: Using 'gemini-1.5-pro' for potentially higher accuracy.
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" }); 
 
         if (audio && mimeType) {
+            // Log the size of the incoming audio data
+            const audioSizeKB = (audio.length * 0.75 / 1024).toFixed(2); // Approximate size of base64 decoded data
+            console.log(`Received audio for transcription. MimeType: ${mimeType}, Base64 String Length: ${audio.length}, Estimated Decoded Size: ${audioSizeKB} KB`);
+
             const audioPart = {
                 inlineData: {
                     data: audio,
@@ -33,7 +36,6 @@ export default async function handler(req, res) {
                 }
             };
 
-            // Optimization 2: More specific and directive prompt for Burmese transcription.
             const transcriptionPrompt = `Transcribe the following Burmese audio into accurate, natural-sounding text. Focus on correct spelling, grammar, and punctuation. Ensure the transcription reflects the spoken content precisely.`;
             
             console.log("Sending audio to Gemini for transcription with enhanced prompt...");
@@ -43,23 +45,19 @@ export default async function handler(req, res) {
 
             if (!finalTranscript) {
                 console.warn('Gemini returned an empty transcription. This could be due to unclear audio, unsupported format, or an issue with the model processing.');
-                return res.status(500).json({ error: 'Failed to get transcription from Gemini. Audio might be unclear or unsupported.' });
+                return res.status(500).json({ error: 'Failed to get transcription from Gemini. Audio might be unclear, too long, or an unsupported format.' });
             }
             console.log("Initial Gemini Transcription (Burmese):", finalTranscript);
 
         } else if (!transcript) {
-            // If neither audio nor transcript is provided, it's an invalid request
             return res.status(400).json({ error: 'No audio or transcript provided for processing.' });
         }
         
         // --- Spell-checking and correction using Gemini AI ---
-        let correctedText = finalTranscript; // Start with the raw transcript or user-provided text
+        let correctedText = finalTranscript;
 
         if (finalTranscript && finalTranscript.trim() !== '') {
             try {
-                // Optimization 3: Refined prompt for correction.
-                // This prompt emphasizes providing *only* the corrected text and aims for natural, fluent Burmese.
-                // It now focuses on spelling and punctuation, and natural fluency, without explicitly mentioning grammar.
                 const correctionPrompt = `Review the following Burmese text for any spelling or punctuation errors. Also, ensure the text is natural and fluent for a native Burmese speaker. Provide only the corrected and polished Burmese text, without any additional comments, explanations, or introductory/concluding phrases.\n\nText to correct:\n${finalTranscript}`;
                 
                 console.log("Sending transcript to Gemini for spell/grammar correction with refined prompt...");
@@ -68,7 +66,6 @@ export default async function handler(req, res) {
                 
                 const rawCorrectedText = correctionResponse.text();
 
-                // Optimization 4: Basic post-processing to clean Gemini's correction output.
                 if (rawCorrectedText.includes("Text to correct:") || rawCorrectedText.includes("Corrected text:") || rawCorrectedText.includes("Here is the corrected text:")) {
                     const lines = rawCorrectedText.split('\n').map(line => line.trim()).filter(line => line.length > 0);
                     let potentialCorrectedLine = '';
@@ -149,8 +146,17 @@ export default async function handler(req, res) {
 
     } catch (error) {
         console.error('API Error:', error);
+        // Provide more specific error messages for common issues
+        let errorMessage = 'Failed to process request.';
+        if (error.message.includes('413')) { // Common error for payload too large
+            errorMessage = 'Audio file too large. Please try a shorter recording or lower quality.';
+        } else if (error.message.includes('timeout')) {
+            errorMessage = 'Processing timed out. This can happen with long recordings. Please increase Vercel function timeout.';
+        } else if (error.message.includes('API key')) {
+            errorMessage = 'Gemini API key is invalid or missing.';
+        }
         res.status(500).json({ 
-            error: 'Failed to process request.', 
+            error: errorMessage, 
             details: error.message,
             stack: process.env.NODE_ENV === 'development' ? error.stack : undefined 
         });
