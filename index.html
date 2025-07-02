@@ -55,6 +55,7 @@
         .button-group button {
             transition: background-color 0.3s ease-in-out, transform 0.2s ease-out, box-shadow 0.3s ease-in-out;
             border: none; /* Remove default button borders */
+            min-width: 180px; /* Uniform button size */
         }
         .button-group button:hover {
             transform: translateY(-3px);
@@ -133,6 +134,20 @@
         <!-- Audio element (kept hidden for internal mediaRecorder use) -->
         <audio id="audioPlayer" class="w-full mt-4 hidden" controls></audio>
 
+        <!-- Template Selection -->
+        <div class="w-full flex flex-col md:flex-row items-center justify-center gap-4 mt-6">
+            <label for="templateSelect" class="text-gray-200 text-lg font-semibold">Template:</label>
+            <select id="templateSelect" 
+                    class="bg-gray-700 text-white p-2 rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    onchange="applyTemplate()"> <!-- Added onchange event -->
+                <option value="general">General</option>
+                <option value="meeting_notes">Meeting Notes</option>
+                <option value="brainstorming">Brainstorming</option>
+                <option value="interview">Interview</option>
+            </select>
+            <!-- Removed Apply Template Button -->
+        </div>
+
         <!-- Transcript Display and Edit Area -->
         <div class="w-full bg-gray-800 p-4 rounded-xl border border-gray-700 mt-6">
             <h2 class="text-xl font-semibold text-gray-100 mb-3">Transcript:</h2>
@@ -157,19 +172,31 @@
                 Save to Notion
             </button>
 
-            <!-- New LLM-powered feature buttons -->
+            <!-- LLM-powered feature buttons -->
             <button id="summarizeBtn" disabled
                     class="bg-green-600 text-white px-6 py-3 rounded-xl shadow-lg opacity-50 cursor-not-allowed hover:bg-green-700 focus:outline-none focus:ring-4 focus:ring-green-500/50 flex items-center justify-center">
                 ✨ Summarize Note
-            </button>
-            <button id="keywordsBtn" disabled
-                    class="bg-yellow-600 text-white px-6 py-3 rounded-xl shadow-lg opacity-50 cursor-not-allowed hover:bg-yellow-700 focus:outline-none focus:ring-4 focus:ring-yellow-500/50 flex items-center justify-center">
-                ✨ Extract Keywords
             </button>
             <button id="translateBtn" disabled
                     class="bg-purple-600 text-white px-6 py-3 rounded-xl shadow-lg opacity-50 cursor-not-allowed hover:bg-purple-700 focus:outline-none focus:ring-4 focus:ring-purple-500/50 flex items-center justify-center">
                 ✨ Translate to English
             </button>
+        </div>
+
+        <!-- Ask Gemini Mode -->
+        <div class="w-full bg-gray-800 p-4 rounded-xl border border-gray-700 mt-6">
+            <h2 class="text-xl font-semibold text-gray-100 mb-3">Ask Gemini (Burmese):</h2>
+            <!-- Removed askInput text box -->
+            <button id="askGeminiBtn" disabled
+                    class="bg-blue-500 text-white px-6 py-3 rounded-xl shadow-lg opacity-50 cursor-not-allowed hover:bg-blue-600 focus:outline-none focus:ring-4 focus:ring-blue-400/50 flex items-center justify-center w-full min-w-[180px]">
+                Ask Gemini
+            </button>
+            <div id="geminiAnswerOutput"
+                 class="w-full p-3 mt-3 border border-gray-600 rounded-lg bg-gray-900 text-gray-100 text-base min-h-[80px] overflow-auto"
+                 style="white-space: pre-wrap;"
+            >
+                Gemini's answer will appear here.
+            </div>
         </div>
 
     </div>
@@ -188,9 +215,12 @@
         const statusMessage = document.getElementById('statusMessage');
         const copyTextBtn = document.getElementById('copyTextBtn');
         const saveToNotionBtn = document.getElementById('saveToNotionBtn');
-        const summarizeBtn = document.getElementById('summarizeBtn'); // New
-        const keywordsBtn = document.getElementById('keywordsBtn');   // New
-        const translateBtn = document.getElementById('translateBtn'); // New
+        const summarizeBtn = document.getElementById('summarizeBtn');
+        const translateBtn = document.getElementById('translateBtn');
+        const templateSelect = document.getElementById('templateSelect');
+        // Removed askInput
+        const askGeminiBtn = document.getElementById('askGeminiBtn');
+        const geminiAnswerOutput = document.getElementById('geminiAnswerOutput');
 
         // MediaRecorder variables
         let mediaRecorder;
@@ -205,57 +235,45 @@
             stopAndTranscribeBtn.disabled = true;
             copyTextBtn.disabled = true;
             saveToNotionBtn.disabled = true;
-            summarizeBtn.disabled = true; // New
-            keywordsBtn.disabled = true;   // New
-            translateBtn.disabled = true; // New
+            summarizeBtn.disabled = true;
+            translateBtn.disabled = true;
+            askGeminiBtn.disabled = true;
 
             startRecordBtn.classList.add('opacity-50', 'cursor-not-allowed');
             stopAndTranscribeBtn.classList.add('opacity-50', 'cursor-not-allowed');
             copyTextBtn.classList.add('opacity-50', 'cursor-not-allowed');
             saveToNotionBtn.classList.add('opacity-50', 'cursor-not-allowed');
-            summarizeBtn.classList.add('opacity-50', 'cursor-not-allowed'); // New
-            keywordsBtn.classList.add('opacity-50', 'cursor-not-allowed');   // New
-            translateBtn.classList.add('opacity-50', 'cursor-not-allowed'); // New
+            summarizeBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            translateBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            askGeminiBtn.classList.add('opacity-50', 'cursor-not-allowed');
 
-            startRecordBtn.classList.remove('recording-indicator'); // Remove pulse animation
+            startRecordBtn.classList.remove('recording-indicator');
 
-            audioPlayer.src = ''; // Clear previous audio src
+            audioPlayer.src = '';
             if (audioUrl) {
-                URL.revokeObjectURL(audioUrl); // Clean up previous object URL
+                URL.revokeObjectURL(audioUrl);
                 audioUrl = null;
             }
 
-            // Apply fade-out before changing message, then fade-in
             statusMessage.classList.remove('status-fade-in');
             statusMessage.classList.add('status-fade-out');
             setTimeout(() => {
                 statusMessage.textContent = message;
                 statusMessage.classList.remove('status-fade-out');
                 statusMessage.classList.add('status-fade-in');
-            }, 300); // Match fade-out duration
+            }, 300);
 
             switch (state) {
                 case 'ready':
                     startRecordBtn.disabled = false;
                     startRecordBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                     statusMessage.textContent = 'Ready to record or type your note.';
-                    transcriptOutput.value = ''; // Clear transcript on ready
+                    transcriptOutput.value = '';
+                    geminiAnswerOutput.textContent = "Gemini's answer will appear here.";
+                    // Removed askInput.value = '';
                     audioBlob = null;
                     audioChunks = [];
-                    // If there's already text in transcriptOutput (e.g., after manual edit), allow copy/save
-                    if (transcriptOutput.value.trim() !== '') {
-                        copyTextBtn.disabled = false;
-                        saveToNotionBtn.disabled = false;
-                        copyTextBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                        saveToNotionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                        // Also enable LLM buttons if text is present
-                        summarizeBtn.disabled = false;
-                        keywordsBtn.disabled = false;
-                        translateBtn.disabled = false;
-                        summarizeBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                        keywordsBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                        translateBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    }
+                    updateButtonStatesBasedOnContent(); // Call this to enable buttons if content exists
                     break;
                 case 'recording':
                     stopAndTranscribeBtn.disabled = false;
@@ -265,26 +283,15 @@
                     break;
                 case 'transcribing':
                     statusMessage.textContent = 'Transcribing audio... Please wait.';
-                    transcriptOutput.value = 'Transcribing...'; // Show immediate feedback
+                    transcriptOutput.value = 'Transcribing...';
                     break;
-                case 'processing_llm': // New state for LLM operations
+                case 'processing_llm':
                     statusMessage.textContent = `Processing with Gemini... Please wait.`;
-                    // All buttons remain disabled during LLM processing
                     break;
                 case 'transcribed_for_review':
                     startRecordBtn.disabled = false;
-                    copyTextBtn.disabled = false;
-                    saveToNotionBtn.disabled = false;
-                    summarizeBtn.disabled = false; // New
-                    keywordsBtn.disabled = false;   // New
-                    translateBtn.disabled = false; // New
-
                     startRecordBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    copyTextBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    saveToNotionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    summarizeBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    keywordsBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    translateBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    updateButtonStatesBasedOnContent(); // Call this to enable buttons after transcription
                     statusMessage.textContent = 'Transcript ready for review. Edit, copy, or save.';
                     break;
                 case 'saving_to_notion':
@@ -292,27 +299,47 @@
                     break;
                 case 'saved':
                     statusMessage.textContent = 'Successfully saved to Notion!';
-                    transcriptOutput.value = ''; // Clear transcript after successful save
-                    updateUI('ready'); // Go back to ready state
+                    transcriptOutput.value = '';
+                    updateUI('ready');
                     break;
                 case 'error':
-                    // Error message set by caller, just update UI state for buttons
                     startRecordBtn.disabled = false;
                     startRecordBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    if (transcriptOutput.value.trim() !== '' && transcriptOutput.value.trim() !== 'Transcribing...') {
-                        copyTextBtn.disabled = false;
-                        saveToNotionBtn.disabled = false;
-                        summarizeBtn.disabled = false; // New
-                        keywordsBtn.disabled = false;   // New
-                        translateBtn.disabled = false; // New
-
-                        copyTextBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                        saveToNotionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                        summarizeBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                        keywordsBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                        translateBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    }
+                    updateButtonStatesBasedOnContent(); // Call this to enable buttons even on error if content exists
                     break;
+            }
+        }
+
+        // Helper function to update button states based on text content
+        function updateButtonStatesBasedOnContent() {
+            const hasTranscriptContent = transcriptOutput.value.trim() !== '';
+            // Removed hasAskInputContent check as askInput is gone
+
+            // Buttons dependent on transcript content
+            copyTextBtn.disabled = !hasTranscriptContent;
+            saveToNotionBtn.disabled = !hasTranscriptContent;
+            summarizeBtn.disabled = !hasTranscriptContent;
+            translateBtn.disabled = !hasTranscriptContent;
+
+            if (hasTranscriptContent) {
+                copyTextBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                saveToNotionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                summarizeBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                translateBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            } else {
+                copyTextBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                saveToNotionBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                summarizeBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                translateBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                templateSelect.value = 'general'; // Reset template if transcript is empty
+            }
+
+            // Ask Gemini button now only dependent on transcript content
+            askGeminiBtn.disabled = !hasTranscriptContent;
+            if (hasTranscriptContent) {
+                askGeminiBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            } else {
+                askGeminiBtn.classList.add('opacity-50', 'cursor-not-allowed');
             }
         }
 
@@ -365,7 +392,7 @@
             };
         }
 
-        // New function to process text with Gemini for summary, keywords, or translation
+        // Function to process text with Gemini for summary or translation
         async function processTextWithGemini(action) {
             const textToProcess = transcriptOutput.value.trim();
 
@@ -374,10 +401,10 @@
                 return;
             }
 
-            updateUI('processing_llm'); // Set new processing state
+            updateUI('processing_llm');
 
             try {
-                const response = await fetch('/api/process-transcript', { // New API endpoint
+                const response = await fetch('/api/process-transcript', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -392,7 +419,7 @@
 
                 if (response.ok) {
                     transcriptOutput.value = data.result || `No ${action} returned.`;
-                    updateUI('transcribed_for_review'); // Go back to review state after processing
+                    updateUI('transcribed_for_review');
                     statusMessage.textContent = `${action.charAt(0).toUpperCase() + action.slice(1)} complete!`;
                 } else {
                     throw new Error(data.error || 'Unknown error from API.');
@@ -404,38 +431,101 @@
             }
         }
 
+        // Function to apply template to text (now called onchange)
+        async function applyTemplate() {
+            const textToTransform = transcriptOutput.value.trim();
+            const selectedTemplate = templateSelect.value;
+
+            if (!textToTransform) {
+                statusMessage.textContent = 'Please enter or transcribe some text to apply a template.';
+                templateSelect.value = 'general'; // Reset dropdown
+                return;
+            }
+
+            if (selectedTemplate === 'general') {
+                statusMessage.textContent = 'No specific template applied. Using general format.';
+                return;
+            }
+
+            updateUI('processing_llm');
+
+            try {
+                const response = await fetch('/api/apply-template', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        text: textToTransform,
+                        templateType: selectedTemplate,
+                    }),
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    transcriptOutput.value = data.transformedText || `Failed to apply template.`;
+                    updateUI('transcribed_for_review');
+                    statusMessage.textContent = `Template "${selectedTemplate}" applied!`;
+                } else {
+                    throw new Error(data.error || 'Unknown error from API.');
+                }
+            } catch (error) {
+                console.error('Error applying template:', error);
+                transcriptOutput.value = `Error applying template: ${error.message}`;
+                updateUI('error');
+            }
+        }
+
+        // Function for Ask Gemini mode
+        async function askGemini() {
+            // question is now always an empty string from the UI perspective
+            const question = ""; 
+            const transcriptContext = transcriptOutput.value.trim();
+
+            if (!transcriptContext) { // Only check for transcript content
+                statusMessage.textContent = 'Please transcribe some text to ask Gemini about.';
+                return;
+            }
+
+            updateUI('processing_llm');
+            geminiAnswerOutput.textContent = 'Thinking...';
+
+            try {
+                const response = await fetch('/api/ask-gemini', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        question: question, // Empty string
+                        transcript: transcriptContext // Always send transcript as context
+                    }),
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    geminiAnswerOutput.textContent = data.answer || 'No answer returned.';
+                    updateUI('transcribed_for_review');
+                    statusMessage.textContent = 'Gemini answered!';
+                } else {
+                    throw new Error(data.error || 'Unknown error from API.');
+                }
+            } catch (error) {
+                console.error('Error asking Gemini:', error);
+                geminiAnswerOutput.textContent = `Error: ${error.message}`;
+                updateUI('error');
+            }
+        }
+
 
         // Initialize UI on load
         document.addEventListener('DOMContentLoaded', () => {
             updateUI('ready');
             // Listen for manual input changes in the textarea
-            transcriptOutput.addEventListener('input', () => {
-                if (transcriptOutput.value.trim() !== '') {
-                    copyTextBtn.disabled = false;
-                    saveToNotionBtn.disabled = false;
-                    summarizeBtn.disabled = false; // Enable LLM buttons
-                    keywordsBtn.disabled = false;
-                    translateBtn.disabled = false;
-
-                    copyTextBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    saveToNotionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    summarizeBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    keywordsBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    translateBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                } else {
-                    copyTextBtn.disabled = true;
-                    saveToNotionBtn.disabled = true;
-                    summarizeBtn.disabled = true; // Disable LLM buttons
-                    keywordsBtn.disabled = true;
-                    translateBtn.disabled = true;
-
-                    copyTextBtn.classList.add('opacity-50', 'cursor-not-allowed');
-                    saveToNotionBtn.classList.add('opacity-50', 'cursor-not-allowed');
-                    summarizeBtn.classList.add('opacity-50', 'cursor-not-allowed');
-                    keywordsBtn.classList.add('opacity-50', 'cursor-not-allowed');
-                    translateBtn.classList.add('opacity-50', 'cursor-not-allowed');
-                }
-            });
+            transcriptOutput.addEventListener('input', updateButtonStatesBasedOnContent);
+            // Removed askInput event listener
         });
 
         // Event listener for starting recording
@@ -461,9 +551,8 @@
 
                     audioUrl = URL.createObjectURL(audioBlob);
                     console.log('Audio Blob created:', audioBlob.type, audioBlob.size, 'bytes. URL:', audioUrl);
-                    stream.getTracks().forEach(track => track.stop()); // Stop microphone stream
+                    stream.getTracks().forEach(track => track.stop());
 
-                    // Directly trigger transcription after stopping recording
                     handleTranscription(); 
                 };
 
@@ -531,14 +620,13 @@
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        transcript: textToSave, // Send the current text from the textarea
+                        transcript: textToSave,
                     }),
                 });
 
                 const data = await response.json();
 
                 if (response.ok) {
-                    // Update the transcriptOutput with the potentially corrected text from API
                     transcriptOutput.value = data.transcript || textToSave; 
                     updateUI('saved');
                 } else {
@@ -553,8 +641,8 @@
 
         // Event listeners for new LLM buttons
         summarizeBtn.addEventListener('click', () => processTextWithGemini('summarize'));
-        keywordsBtn.addEventListener('click', () => processTextWithGemini('keywords'));
         translateBtn.addEventListener('click', () => processTextWithGemini('translate'));
+        askGeminiBtn.addEventListener('click', askGemini);
 
     </script>
 </body>
