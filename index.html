@@ -11,20 +11,22 @@
         body {
             font-family: 'Inter', sans-serif;
             display: flex;
+            flex-direction: column; /* Changed to column to allow footer at bottom */
             justify-content: center;
             align-items: center;
             min-height: 100vh;
             padding: 20px;
-            /* Robot and Scientific Theme Background */
-            background-image: url('https://placehold.co/1920x1080/0A192F/E0E0E0?text=Scientific+Robot+Background'); /* Placeholder - Replace with your actual image */
+            /* Dark Mode Theme Background */
+            background-color: #1a202c; /* Dark charcoal */
+            background-image: url('https://placehold.co/1920x1080/1A202C/6B7280?text=Abstract+Dark+Background'); /* Placeholder - Replace with a dark, abstract image */
             background-size: cover;
             background-position: center;
-            background-attachment: fixed; /* Ensures background stays fixed during scroll */
-            position: relative; /* Needed for pseudo-element positioning */
-            z-index: 0; /* Ensure content is above background */
+            background-attachment: fixed;
+            position: relative;
+            z-index: 0;
         }
 
-        /* Overlay for lower transparency effect */
+        /* Overlay for subtle transparency effect */
         body::before {
             content: "";
             position: absolute;
@@ -32,66 +34,99 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(10, 25, 47, 0.7); /* Dark blue overlay with 70% opacity */
-            z-index: -1; /* Place behind content */
+            background-color: rgba(0, 0, 0, 0.6); /* Dark overlay with 60% opacity */
+            z-index: -1;
         }
 
         .container {
-            background-color: rgba(255, 255, 255, 0.9); /* Slightly transparent white container */
+            background-color: rgba(30, 41, 59, 0.9); /* Dark blue-gray, slightly transparent */
             border-radius: 16px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); /* Stronger shadow for dark mode */
             padding: 30px;
             width: 100%;
             max-width: 600px;
-            z-index: 1; /* Ensure container is above the overlay */
-            position: relative; /* Needed for z-index to work */
+            z-index: 1;
+            position: relative;
+            border: 1px solid rgba(71, 85, 105, 0.5); /* Subtle border */
+            margin-bottom: 20px; /* Space for the footer */
         }
+        
+        /* Button animations */
         .button-group button {
-            transition: background-color 0.2s, transform 0.1s;
+            transition: background-color 0.3s ease-in-out, transform 0.2s ease-out, box-shadow 0.3s ease-in-out;
+            border: none; /* Remove default button borders */
         }
         .button-group button:hover {
-            transform: translateY(-2px);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
         }
         .button-group button:active {
             transform: translateY(0);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
         }
+
+        /* Recording indicator animation */
         .recording-indicator {
-            animation: pulse 1.5s infinite;
+            animation: pulse 1.5s infinite cubic-bezier(0.4, 0, 0.6, 1);
         }
         @keyframes pulse {
-            0% { transform: scale(1); opacity: 1; }
+            0%, 100% { transform: scale(1); opacity: 1; }
             50% { transform: scale(1.05); opacity: 0.7; }
             100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* Loading spinner animation */
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #3b82f6; /* Blue */
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Status message animation */
+        .status-fade-in {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+        .status-fade-out {
+            animation: fadeOut 0.5s ease-in forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; transform: translateY(0); }
+            to { opacity: 0; transform: translateY(-10px); }
         }
     </style>
 </head>
 <body>
     <div class="container flex flex-col items-center space-y-6">
-        <h1 class="text-3xl font-bold text-gray-800 mb-4">Voice Note App</h1>
+        <h1 class="text-3xl font-bold text-gray-100 mb-4">Voice Note App</h1>
 
         <!-- Status Message Area -->
-        <div id="statusMessage" class="text-center text-sm font-medium text-gray-600 min-h-[20px]">
+        <div id="statusMessage" class="text-center text-sm font-medium text-gray-300 min-h-[20px] status-fade-in">
             Ready to record.
         </div>
 
-        <!-- Recording and Transcribing Controls -->
+        <!-- Recording Controls -->
         <div class="button-group flex flex-wrap justify-center gap-4 w-full">
             <button id="startRecord"
-                    class="bg-blue-600 text-white px-6 py-3 rounded-xl shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300 flex items-center justify-center">
+                    class="bg-blue-600 text-white px-6 py-3 rounded-xl shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500/50 flex items-center justify-center">
                 <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7v1m0 0v1m0-1a7 7 0 01-7-7m7 7v-1m0 0V5a2 2 0 012-2h4a2 2 0 012 2v6a2 2 0 01-2 2h-4a2 2 0 01-2-2z"></path></svg>
                 Start Recording
             </button>
 
-            <button id="stopRecord" disabled
-                    class="bg-red-500 text-white px-6 py-3 rounded-xl shadow-lg opacity-50 cursor-not-allowed hover:bg-red-600 focus:outline-none focus:ring-4 focus:ring-red-300 flex items-center justify-center">
+            <button id="stopAndTranscribe" disabled
+                    class="bg-red-600 text-white px-6 py-3 rounded-xl shadow-lg opacity-50 cursor-not-allowed hover:bg-red-700 focus:outline-none focus:ring-4 focus:ring-red-500/50 flex items-center justify-content-center">
                 <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9 10H7v4h2v-4zm8 0h-2v4h2v-4z"></path></svg>
-                Stop Recording
-            </button>
-
-            <button id="transcribeAudioBtn" disabled
-                    class="bg-purple-600 text-white px-6 py-3 rounded-xl shadow-lg opacity-50 cursor-not-allowed hover:bg-purple-700 focus:outline-none focus:ring-4 focus:ring-purple-300 flex items-center justify-center">
-                <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v6a2 2 0 002 2h3m0-1V7m0 0h8a2 2 0 012 2v6a2 2 0 01-2 2h-8m0-9v9m6-10l4 4-4 4"></path></svg>
-                Transcribe Audio
+                Stop & Transcribe
             </button>
         </div>
 
@@ -99,10 +134,10 @@
         <audio id="audioPlayer" class="w-full mt-4 hidden" controls></audio>
 
         <!-- Transcript Display and Edit Area -->
-        <div class="w-full bg-gray-50 p-4 rounded-xl border border-gray-200 mt-6">
-            <h2 class="text-xl font-semibold text-gray-700 mb-3">Transcript:</h2>
+        <div class="w-full bg-gray-800 p-4 rounded-xl border border-gray-700 mt-6">
+            <h2 class="text-xl font-semibold text-gray-100 mb-3">Transcript:</h2>
             <textarea id="transcriptOutput"
-                      class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 resize-y text-gray-800 text-base leading-relaxed min-h-[120px]"
+                      class="w-full p-3 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 resize-y text-gray-100 bg-gray-900 text-base leading-relaxed min-h-[120px]"
                       rows="6"
                       placeholder="Your transcribed or manually entered text will appear here. You can edit it directly."
             ></textarea>
@@ -111,52 +146,78 @@
         <!-- Action Buttons for Transcript -->
         <div class="flex flex-wrap justify-center gap-4 w-full mt-4">
             <button id="copyTextBtn" disabled
-                    class="bg-gray-700 text-white px-6 py-3 rounded-xl shadow-lg opacity-50 cursor-not-allowed hover:bg-gray-800 focus:outline-none focus:ring-4 focus:ring-gray-300 flex items-center justify-center">
+                    class="bg-gray-700 text-white px-6 py-3 rounded-xl shadow-lg opacity-50 cursor-not-allowed hover:bg-gray-800 focus:outline-none focus:ring-4 focus:ring-gray-500/50 flex items-center justify-center">
                 <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4a2 2 0 012 2v4m-5 4l-4-4"></path></svg>
                 Copy All Text
             </button>
 
             <button id="saveToNotionBtn" disabled
-                    class="bg-indigo-600 text-white px-6 py-3 rounded-xl shadow-lg opacity-50 cursor-not-allowed hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 flex items-center justify-center">
+                    class="bg-indigo-600 text-white px-6 py-3 rounded-xl shadow-lg opacity-50 cursor-not-allowed hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-500/50 flex items-center justify-center">
                 <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                 Save to Notion
+            </button>
+
+            <!-- New LLM-powered feature buttons -->
+            <button id="summarizeBtn" disabled
+                    class="bg-green-600 text-white px-6 py-3 rounded-xl shadow-lg opacity-50 cursor-not-allowed hover:bg-green-700 focus:outline-none focus:ring-4 focus:ring-green-500/50 flex items-center justify-center">
+                ✨ Summarize Note
+            </button>
+            <button id="keywordsBtn" disabled
+                    class="bg-yellow-600 text-white px-6 py-3 rounded-xl shadow-lg opacity-50 cursor-not-allowed hover:bg-yellow-700 focus:outline-none focus:ring-4 focus:ring-yellow-500/50 flex items-center justify-center">
+                ✨ Extract Keywords
+            </button>
+            <button id="translateBtn" disabled
+                    class="bg-purple-600 text-white px-6 py-3 rounded-xl shadow-lg opacity-50 cursor-not-allowed hover:bg-purple-700 focus:outline-none focus:ring-4 focus:ring-purple-500/50 flex items-center justify-center">
+                ✨ Translate to English
             </button>
         </div>
 
     </div>
 
+    <!-- Footer -->
+    <footer class="mt-8 text-center text-gray-400 text-sm">
+        Created by AZM
+    </footer>
+
     <script>
         // DOM Elements
         const startRecordBtn = document.getElementById('startRecord');
-        const stopRecordBtn = document.getElementById('stopRecord');
-        const transcribeAudioBtn = document.getElementById('transcribeAudioBtn');
-        const audioPlayer = document.getElementById('audioPlayer'); // Still needed for MediaRecorder context
+        const stopAndTranscribeBtn = document.getElementById('stopAndTranscribe');
+        const audioPlayer = document.getElementById('audioPlayer'); 
         const transcriptOutput = document.getElementById('transcriptOutput');
         const statusMessage = document.getElementById('statusMessage');
         const copyTextBtn = document.getElementById('copyTextBtn');
         const saveToNotionBtn = document.getElementById('saveToNotionBtn');
+        const summarizeBtn = document.getElementById('summarizeBtn'); // New
+        const keywordsBtn = document.getElementById('keywordsBtn');   // New
+        const translateBtn = document.getElementById('translateBtn'); // New
 
         // MediaRecorder variables
         let mediaRecorder;
         let audioChunks = [];
         let audioBlob = null;
-        let audioUrl = null; // Still used to hold object URL even if not for download/playback
+        let audioUrl = null; 
 
         // Function to update button states and messages
-        function updateUI(state) {
+        function updateUI(state, message = '') {
+            // Reset all buttons to disabled and opaque by default
             startRecordBtn.disabled = true;
-            stopRecordBtn.disabled = true;
-            transcribeAudioBtn.disabled = true;
+            stopAndTranscribeBtn.disabled = true;
             copyTextBtn.disabled = true;
             saveToNotionBtn.disabled = true;
+            summarizeBtn.disabled = true; // New
+            keywordsBtn.disabled = true;   // New
+            translateBtn.disabled = true; // New
 
             startRecordBtn.classList.add('opacity-50', 'cursor-not-allowed');
-            stopRecordBtn.classList.add('opacity-50', 'cursor-not-allowed');
-            transcribeAudioBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            stopAndTranscribeBtn.classList.add('opacity-50', 'cursor-not-allowed');
             copyTextBtn.classList.add('opacity-50', 'cursor-not-allowed');
             saveToNotionBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            summarizeBtn.classList.add('opacity-50', 'cursor-not-allowed'); // New
+            keywordsBtn.classList.add('opacity-50', 'cursor-not-allowed');   // New
+            translateBtn.classList.add('opacity-50', 'cursor-not-allowed'); // New
 
-            startRecordBtn.classList.remove('recording-indicator');
+            startRecordBtn.classList.remove('recording-indicator'); // Remove pulse animation
 
             audioPlayer.src = ''; // Clear previous audio src
             if (audioUrl) {
@@ -164,51 +225,66 @@
                 audioUrl = null;
             }
 
+            // Apply fade-out before changing message, then fade-in
+            statusMessage.classList.remove('status-fade-in');
+            statusMessage.classList.add('status-fade-out');
+            setTimeout(() => {
+                statusMessage.textContent = message;
+                statusMessage.classList.remove('status-fade-out');
+                statusMessage.classList.add('status-fade-in');
+            }, 300); // Match fade-out duration
 
             switch (state) {
                 case 'ready':
                     startRecordBtn.disabled = false;
                     startRecordBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                     statusMessage.textContent = 'Ready to record or type your note.';
-                    transcriptOutput.value = '';
+                    transcriptOutput.value = ''; // Clear transcript on ready
                     audioBlob = null;
                     audioChunks = [];
-                    // If there's already text in transcriptOutput, allow copy/save
+                    // If there's already text in transcriptOutput (e.g., after manual edit), allow copy/save
                     if (transcriptOutput.value.trim() !== '') {
                         copyTextBtn.disabled = false;
                         saveToNotionBtn.disabled = false;
                         copyTextBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                         saveToNotionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                        // Also enable LLM buttons if text is present
+                        summarizeBtn.disabled = false;
+                        keywordsBtn.disabled = false;
+                        translateBtn.disabled = false;
+                        summarizeBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                        keywordsBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                        translateBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                     }
                     break;
                 case 'recording':
-                    stopRecordBtn.disabled = false;
-                    stopRecordBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    stopAndTranscribeBtn.disabled = false;
+                    stopAndTranscribeBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                     startRecordBtn.classList.add('recording-indicator');
                     statusMessage.textContent = 'Recording... Say something!';
                     break;
-                case 'recorded':
-                    transcribeAudioBtn.disabled = false;
-                    transcribeAudioBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    statusMessage.textContent = 'Recording stopped. Transcribe now.';
-                    if (transcriptOutput.value.trim() !== '') {
-                        copyTextBtn.disabled = false;
-                        saveToNotionBtn.disabled = false;
-                        copyTextBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                        saveToNotionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    }
-                    break;
                 case 'transcribing':
                     statusMessage.textContent = 'Transcribing audio... Please wait.';
-                    transcriptOutput.value = 'Transcribing...';
+                    transcriptOutput.value = 'Transcribing...'; // Show immediate feedback
+                    break;
+                case 'processing_llm': // New state for LLM operations
+                    statusMessage.textContent = `Processing with Gemini... Please wait.`;
+                    // All buttons remain disabled during LLM processing
                     break;
                 case 'transcribed_for_review':
                     startRecordBtn.disabled = false;
                     copyTextBtn.disabled = false;
                     saveToNotionBtn.disabled = false;
+                    summarizeBtn.disabled = false; // New
+                    keywordsBtn.disabled = false;   // New
+                    translateBtn.disabled = false; // New
+
                     startRecordBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                     copyTextBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                     saveToNotionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    summarizeBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    keywordsBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    translateBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                     statusMessage.textContent = 'Transcript ready for review. Edit, copy, or save.';
                     break;
                 case 'saving_to_notion':
@@ -216,89 +292,35 @@
                     break;
                 case 'saved':
                     statusMessage.textContent = 'Successfully saved to Notion!';
-                    transcriptOutput.value = '';
-                    updateUI('ready');
+                    transcriptOutput.value = ''; // Clear transcript after successful save
+                    updateUI('ready'); // Go back to ready state
                     break;
                 case 'error':
-                    statusMessage.textContent = 'An error occurred. Please try again.';
+                    // Error message set by caller, just update UI state for buttons
                     startRecordBtn.disabled = false;
                     startRecordBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    if (transcriptOutput.value.trim() !== '') {
+                    if (transcriptOutput.value.trim() !== '' && transcriptOutput.value.trim() !== 'Transcribing...') {
                         copyTextBtn.disabled = false;
                         saveToNotionBtn.disabled = false;
+                        summarizeBtn.disabled = false; // New
+                        keywordsBtn.disabled = false;   // New
+                        translateBtn.disabled = false; // New
+
                         copyTextBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                         saveToNotionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                        summarizeBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                        keywordsBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                        translateBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                     }
                     break;
             }
         }
 
-        // Initialize UI on load
-        document.addEventListener('DOMContentLoaded', () => {
-            updateUI('ready');
-            transcriptOutput.addEventListener('input', () => {
-                if (transcriptOutput.value.trim() !== '') {
-                    copyTextBtn.disabled = false;
-                    saveToNotionBtn.disabled = false;
-                    copyTextBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    saveToNotionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                } else {
-                    copyTextBtn.disabled = true;
-                    saveToNotionBtn.disabled = true;
-                    copyTextBtn.classList.add('opacity-50', 'cursor-not-allowed');
-                    saveToNotionBtn.classList.add('opacity-50', 'cursor-not-allowed');
-                }
-            });
-        });
-
-        // Event listener for starting recording
-        startRecordBtn.addEventListener('click', async () => {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                mediaRecorder = new MediaRecorder(stream);
-                audioChunks = [];
-
-                mediaRecorder.ondataavailable = event => {
-                    audioChunks.push(event.data);
-                };
-
-                mediaRecorder.onstop = () => {
-                    audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                    if (audioBlob.size === 0) {
-                        console.error('Recorded audio Blob is empty!');
-                        statusMessage.textContent = 'Recording failed: No audio captured. Try again.';
-                        updateUI('error');
-                        stream.getTracks().forEach(track => track.stop());
-                        return;
-                    }
-
-                    audioUrl = URL.createObjectURL(audioBlob);
-                    console.log('Audio Blob created:', audioBlob.type, audioBlob.size, 'bytes. URL:', audioUrl);
-                    updateUI('recorded');
-                    stream.getTracks().forEach(track => track.stop());
-                };
-
-                mediaRecorder.start();
-                updateUI('recording');
-
-            } catch (err) {
-                console.error('Error accessing microphone:', err);
-                statusMessage.textContent = 'Error: Could not access microphone. Please allow access.';
-                updateUI('error');
-            }
-        });
-
-        // Event listener for stopping recording
-        stopRecordBtn.addEventListener('click', () => {
-            if (mediaRecorder && mediaRecorder.state === 'recording') {
-                mediaRecorder.stop();
-            }
-        });
-
-        // Event listener for Transcribe Audio button
-        transcribeAudioBtn.addEventListener('click', async () => {
-            if (!audioBlob) {
+        // Function to handle transcription logic
+        async function handleTranscription() {
+            if (!audioBlob || audioBlob.size === 0) {
                 statusMessage.textContent = 'No audio recorded to transcribe.';
+                updateUI('error');
                 return;
             }
 
@@ -341,6 +363,125 @@
                 statusMessage.textContent = 'Error processing audio for transcription.';
                 updateUI('error');
             };
+        }
+
+        // New function to process text with Gemini for summary, keywords, or translation
+        async function processTextWithGemini(action) {
+            const textToProcess = transcriptOutput.value.trim();
+
+            if (!textToProcess) {
+                statusMessage.textContent = `Please enter or transcribe some text to ${action}.`;
+                return;
+            }
+
+            updateUI('processing_llm'); // Set new processing state
+
+            try {
+                const response = await fetch('/api/process-transcript', { // New API endpoint
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        text: textToProcess,
+                        action: action,
+                    }),
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    transcriptOutput.value = data.result || `No ${action} returned.`;
+                    updateUI('transcribed_for_review'); // Go back to review state after processing
+                    statusMessage.textContent = `${action.charAt(0).toUpperCase() + action.slice(1)} complete!`;
+                } else {
+                    throw new Error(data.error || 'Unknown error from API.');
+                }
+            } catch (error) {
+                console.error(`Error processing text for ${action}:`, error);
+                transcriptOutput.value = `Error performing ${action}: ${error.message}`;
+                updateUI('error');
+            }
+        }
+
+
+        // Initialize UI on load
+        document.addEventListener('DOMContentLoaded', () => {
+            updateUI('ready');
+            // Listen for manual input changes in the textarea
+            transcriptOutput.addEventListener('input', () => {
+                if (transcriptOutput.value.trim() !== '') {
+                    copyTextBtn.disabled = false;
+                    saveToNotionBtn.disabled = false;
+                    summarizeBtn.disabled = false; // Enable LLM buttons
+                    keywordsBtn.disabled = false;
+                    translateBtn.disabled = false;
+
+                    copyTextBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    saveToNotionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    summarizeBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    keywordsBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    translateBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                } else {
+                    copyTextBtn.disabled = true;
+                    saveToNotionBtn.disabled = true;
+                    summarizeBtn.disabled = true; // Disable LLM buttons
+                    keywordsBtn.disabled = true;
+                    translateBtn.disabled = true;
+
+                    copyTextBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                    saveToNotionBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                    summarizeBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                    keywordsBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                    translateBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+            });
+        });
+
+        // Event listener for starting recording
+        startRecordBtn.addEventListener('click', async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = event => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    if (audioBlob.size === 0) {
+                        console.error('Recorded audio Blob is empty!');
+                        statusMessage.textContent = 'Recording failed: No audio captured. Try again.';
+                        updateUI('error');
+                        stream.getTracks().forEach(track => track.stop());
+                        return;
+                    }
+
+                    audioUrl = URL.createObjectURL(audioBlob);
+                    console.log('Audio Blob created:', audioBlob.type, audioBlob.size, 'bytes. URL:', audioUrl);
+                    stream.getTracks().forEach(track => track.stop()); // Stop microphone stream
+
+                    // Directly trigger transcription after stopping recording
+                    handleTranscription(); 
+                };
+
+                mediaRecorder.start();
+                updateUI('recording');
+
+            } catch (err) {
+                console.error('Error accessing microphone:', err);
+                statusMessage.textContent = 'Error: Could not access microphone. Please allow access.';
+                updateUI('error');
+            }
+        });
+
+        // Event listener for stopping recording (now "Stop & Transcribe")
+        stopAndTranscribeBtn.addEventListener('click', () => {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+            }
         });
 
         // Event listener for Copy All Text button
@@ -372,7 +513,6 @@
             }
         });
 
-
         // Event listener for Save to Notion button
         saveToNotionBtn.addEventListener('click', async () => {
             const textToSave = transcriptOutput.value.trim();
@@ -391,14 +531,15 @@
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        transcript: textToSave,
+                        transcript: textToSave, // Send the current text from the textarea
                     }),
                 });
 
                 const data = await response.json();
 
                 if (response.ok) {
-                    transcriptOutput.value = `Saved to Notion: ${data.transcript || textToSave}`;
+                    // Update the transcriptOutput with the potentially corrected text from API
+                    transcriptOutput.value = data.transcript || textToSave; 
                     updateUI('saved');
                 } else {
                     throw new Error(data.error || 'Unknown error from API.');
@@ -409,6 +550,11 @@
                 updateUI('error');
             }
         });
+
+        // Event listeners for new LLM buttons
+        summarizeBtn.addEventListener('click', () => processTextWithGemini('summarize'));
+        keywordsBtn.addEventListener('click', () => processTextWithGemini('keywords'));
+        translateBtn.addEventListener('click', () => processTextWithGemini('translate'));
 
     </script>
 </body>
