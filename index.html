@@ -377,8 +377,35 @@
             }
         }
 
+        // Function to upload audio to Gemini Files API
+        async function uploadAudioToGeminiFilesAPI(publicHttpUrl, mimeType) {
+            try {
+                const response = await fetch('/api/upload-audio-to-gemini', { // New API endpoint
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        publicHttpUrl: publicHttpUrl,
+                        mimeType: mimeType,
+                    }),
+                });
 
-        // Function to handle transcription logic (updated to use Public HTTP URL)
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to upload audio to Gemini Files API.');
+                }
+                console.log('Audio uploaded to Gemini Files API. URI:', data.geminiFileUri);
+                return data.geminiFileUri;
+            } catch (error) {
+                console.error('Error in uploadAudioToGeminiFilesAPI:', error);
+                throw error;
+            }
+        }
+
+
+        // Function to handle transcription logic (updated to use Gemini Files API)
         async function handleTranscription() {
             if (!audioBlob || audioBlob.size === 0) {
                 statusMessage.textContent = 'No audio recorded to transcribe.';
@@ -389,15 +416,20 @@
             updateUI('transcribing');
 
             try {
+                // 1. Upload audio to GCS first
                 const publicHttpUrl = await uploadAudioToGCS(audioBlob);
 
+                // 2. Then, upload from GCS to Gemini Files API
+                const geminiFileUri = await uploadAudioToGeminiFilesAPI(publicHttpUrl, audioBlob.type);
+
+                // 3. Finally, send the Gemini File URI to transcribe-and-save API
                 const response = await fetch('/api/transcribe-and-save', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        publicHttpUrl: publicHttpUrl,
+                        geminiFileUri: geminiFileUri, // Send the Gemini File URI here
                         mimeType: audioBlob.type, 
                     }),
                 });
@@ -412,7 +444,7 @@
                     throw new Error(data.error || 'Unknown error from API.');
                 }
             } catch (error) {
-                console.error('Error in transcription process (via GCS Public URL):', error);
+                console.error('Error in transcription process (via Gemini Files API):', error);
                 transcriptOutput.value = `Error: ${error.message}`;
                 updateUI('error');
             }
