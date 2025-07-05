@@ -1,13 +1,14 @@
 // api/upload-audio-to-gemini.js
 // This code should be placed in a file like `api/upload-audio-to-gemini.js` in your Vercel project's root.
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+// FIX: Import FilesService directly
+import { GoogleGenerativeAI, FilesService } from "@google/generative-ai"; 
 import fetch from 'node-fetch'; // For fetching the audio from GCS public URL
 
 // Ensure your environment variables are set in Vercel:
 // GEMINI_API_KEY
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY); // Keep genAI for other model calls
 
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
@@ -35,11 +36,11 @@ export default async function handler(req, res) {
         
         console.log(`Fetched audio (${audioBuffer.length} bytes). Uploading to Gemini Files API...`);
 
-        // FIX: Corrected access to Files API service
-        const filesService = genAI.files; // Access the Files API service via .files property
+        // FIX: Instantiate FilesService directly using the API key
+        const filesService = new FilesService(process.env.GEMINI_API_KEY); 
 
         // Upload the audio to Gemini Files API
-        const uploadResult = await filesService.uploadFile({ // Use filesService
+        const uploadResult = await filesService.uploadFile({ 
             file: audioBuffer,
             mimeType: mimeType,
             displayName: `voice-note-${Date.now()}`, // A display name for the file in Gemini's system
