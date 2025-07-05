@@ -335,11 +335,10 @@
             }
         }
 
-        // --- NEW: Function to handle audio upload to GCS ---
+        // Function to handle audio upload to GCS
         async function uploadAudioToGCS(audioBlob) {
             try {
-                // 1. Get a signed URL from your Vercel API
-                const fileName = `voice-notes/${Date.now()}-${Math.random().toString(36).substring(2, 9)}.webm`; // Unique filename
+                const fileName = `voice-notes/${Date.now()}-${Math.random().toString(36).substring(2, 9)}.webm`;
                 
                 const signedUrlResponse = await fetch('/api/get-signed-url', {
                     method: 'POST',
@@ -351,13 +350,11 @@
                 if (!signedUrlResponse.ok) {
                     throw new Error(signedUrlData.error || 'Failed to get signed URL for GCS upload.');
                 }
-                // IMPORTANT: Now receiving publicHttpUrl, not gcsUri
                 const { signedUrl, publicHttpUrl } = signedUrlData; 
 
                 console.log('Received signed URL for GCS upload:', signedUrl);
                 console.log('Target Public HTTP URL:', publicHttpUrl);
 
-                // 2. Upload the audio Blob directly to the signed URL
                 const uploadResponse = await fetch(signedUrl, {
                     method: 'PUT',
                     headers: {
@@ -373,10 +370,10 @@
                 }
 
                 console.log('Audio uploaded successfully to GCS:', publicHttpUrl);
-                return publicHttpUrl; // Return the public HTTP URL
+                return publicHttpUrl;
             } catch (error) {
                 console.error('Error in GCS upload process:', error);
-                throw error; // Re-throw to be caught by calling function
+                throw error;
             }
         }
 
@@ -392,17 +389,15 @@
             updateUI('transcribing');
 
             try {
-                // Upload audio to GCS first to get the public HTTP URL
                 const publicHttpUrl = await uploadAudioToGCS(audioBlob);
 
-                // Then send the public HTTP URL to your transcribe-and-save API
                 const response = await fetch('/api/transcribe-and-save', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        publicHttpUrl: publicHttpUrl, // Send the public HTTP URL here
+                        publicHttpUrl: publicHttpUrl,
                         mimeType: audioBlob.type, 
                     }),
                 });
@@ -547,7 +542,7 @@
                 geminiAnswerOutput.textContent = `Error: ${error.message}`;
                 updateUI('error');
             }
-        });
+        }
 
         // Initialize UI on load
         document.addEventListener('DOMContentLoaded', () => {
@@ -558,6 +553,7 @@
         // Event listener for starting recording
         startRecordBtn.addEventListener('click', async () => {
             try {
+                // Request microphone access
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 mediaRecorder = new MediaRecorder(stream);
                 audioChunks = [];
@@ -572,13 +568,14 @@
                         console.error('Recorded audio Blob is empty!');
                         statusMessage.textContent = 'Recording failed: No audio captured. Try again.';
                         updateUI('error');
-                        stream.getTracks().forEach(track => track.stop());
+                        // Ensure tracks are stopped even if blob is empty
+                        stream.getTracks().forEach(track => track.stop()); 
                         return;
                     }
 
                     audioUrl = URL.createObjectURL(audioBlob);
                     console.log('Audio Blob created:', audioBlob.type, audioBlob.size, 'bytes. URL:', audioUrl);
-                    stream.getTracks().forEach(track => track.stop());
+                    stream.getTracks().forEach(track => track.stop()); // Stop microphone stream
 
                     handleTranscription(); 
                 };
@@ -588,7 +585,13 @@
 
             } catch (err) {
                 console.error('Error accessing microphone:', err);
-                statusMessage.textContent = 'Error: Could not access microphone. Please allow access.';
+                let errorMessage = 'Error: Could not access microphone.';
+                if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                    errorMessage += ' Please allow microphone access in your browser settings.';
+                } else if (err.name === 'NotFoundError') {
+                    errorMessage += ' No microphone found.';
+                }
+                statusMessage.textContent = errorMessage;
                 updateUI('error');
             }
         });
