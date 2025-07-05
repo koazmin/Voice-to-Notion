@@ -1,14 +1,14 @@
 // api/upload-audio-to-gemini.js
 // This code should be placed in a file like `api/upload-audio-to-gemini.js` in your Vercel project's root.
 
-// FIX: Import FilesService directly
-import { GoogleGenerativeAI, FilesService } from "@google/generative-ai"; 
-import fetch from 'node-fetch'; // For fetching the audio from GCS public URL
+// FIX: Remove FilesService from named import
+import { GoogleGenerativeAI } from "@google/generative-ai"; 
+import fetch from 'node-fetch';
 
 // Ensure your environment variables are set in Vercel:
 // GEMINI_API_KEY
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY); // Keep genAI for other model calls
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
@@ -31,19 +31,22 @@ export default async function handler(req, res) {
             throw new Error(`Failed to fetch audio from GCS (${audioResponse.status}): ${errorText}`);
         }
 
-        // Convert ArrayBuffer to Buffer for Gemini API upload
         const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
         
         console.log(`Fetched audio (${audioBuffer.length} bytes). Uploading to Gemini Files API...`);
 
-        // FIX: Instantiate FilesService directly using the API key
-        const filesService = new FilesService(process.env.GEMINI_API_KEY); 
+        // FIX: Access Files API service via genAI.files
+        const filesService = genAI.files; 
 
-        // Upload the audio to Gemini Files API
+        if (!filesService) {
+            console.error("genAI.files is undefined. This might indicate an issue with GEMINI_API_KEY or SDK initialization.");
+            throw new Error("Gemini Files API service not available. Check API key and SDK version.");
+        }
+
         const uploadResult = await filesService.uploadFile({ 
             file: audioBuffer,
             mimeType: mimeType,
-            displayName: `voice-note-${Date.now()}`, // A display name for the file in Gemini's system
+            displayName: `voice-note-${Date.now()}`,
         });
 
         const geminiFile = uploadResult.file;
