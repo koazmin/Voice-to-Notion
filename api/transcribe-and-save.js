@@ -19,26 +19,26 @@ export default async function handler(req, res) {
     }
 
     try {
-        // Now expecting gcsUri instead of base64 audio
-        const { gcsUri, mimeType, transcript } = req.body; 
+        // Now expecting publicHttpUrl instead of gcsUri or base64 audio
+        const { publicHttpUrl, mimeType, transcript } = req.body; 
         let finalTranscript = transcript;
 
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" }); 
 
-        if (gcsUri && mimeType) { // Check for gcsUri instead of audio
-            console.log(`Received GCS URI for transcription: ${gcsUri} with mimeType: ${mimeType}`);
+        if (publicHttpUrl && mimeType) { // Check for publicHttpUrl
+            console.log(`Received public HTTP URL for transcription: ${publicHttpUrl} with mimeType: ${mimeType}`);
 
-            // Create a Part from the GCS URI
+            // Create a Part from the public HTTP URL
             const audioPart = {
-                fileData: { // Use fileData for GCS URIs
-                    fileUri: gcsUri,
+                fileData: { // Use fileData for URIs (HTTP or GCS)
+                    fileUri: publicHttpUrl, // Pass the public HTTP URL here
                     mimeType: mimeType
                 }
             };
 
             const transcriptionPrompt = `Transcribe the following Burmese audio into accurate, natural-sounding text. Focus on correct spelling, grammar, and punctuation. Ensure the transcription reflects the spoken content precisely.`;
             
-            console.log(`Sending GCS audio URI ${gcsUri} to Gemini for transcription...`);
+            console.log(`Sending public HTTP URL ${publicHttpUrl} to Gemini for transcription...`);
             const result = await model.generateContent([transcriptionPrompt, audioPart]);
             const response = result.response;
             finalTranscript = response.text();
@@ -157,6 +157,8 @@ export default async function handler(req, res) {
             errorMessage = `GCS signed URL error: ${error.message}`;
         } else if (error.message.includes('upload to GCS')) {
             errorMessage = `GCS upload failed: ${error.message}`;
+        } else if (error.message.includes('Invalid or unsupported file uri')) {
+            errorMessage = `Gemini could not process the audio URL. Ensure bucket is public and URL is correct.`;
         }
         res.status(500).json({ 
             error: errorMessage, 
