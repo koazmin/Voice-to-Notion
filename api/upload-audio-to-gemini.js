@@ -33,9 +33,10 @@ export default async function handler(req, res) {
         // Convert ArrayBuffer to Buffer for Gemini API upload
         const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
         
-        console(`Fetched audio (${audioBuffer.length} bytes). Uploading to Gemini Files API...`);
+        console.log(`Fetched audio (${audioBuffer.length} bytes). Uploading to Gemini Files API...`); // Corrected console.log
 
-        const files = genAI.get  FilesService(); // Access the Files API service
+        // FIX: Corrected access to getFilesService()
+        const files = genAI.getFilesService(); // Access the Files API service
 
         // Upload the audio to Gemini Files API
         const uploadResult = await files.uploadFile({
