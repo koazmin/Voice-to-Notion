@@ -1,7 +1,8 @@
 // api/transcribe-and-save.js
 // This code should be placed in a file like `api/transcribe-and-save.js` in your Vercel project's root.
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+// FIX: Import FilesService directly for deletion
+import { GoogleGenerativeAI, FilesService } from "@google/generative-ai"; 
 import { Client as NotionClient } from "@notionhq/client";
 
 // Ensure your environment variables are set in Vercel:
@@ -19,7 +20,6 @@ export default async function handler(req, res) {
     }
 
     try {
-        // Now expecting geminiFileUri (from Gemini Files API) or transcript
         const { geminiFileUri, mimeType, transcript } = req.body; 
         let finalTranscript = transcript;
 
@@ -27,13 +27,12 @@ export default async function handler(req, res) {
 
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" }); 
 
-        // The primary path for audio transcription is via geminiFileUri
         if (geminiFileUri && mimeType) {
             console.log(`Received Gemini File URI for transcription: ${geminiFileUri} with mimeType: ${mimeType}`);
 
             const audioPart = {
-                fileData: { // Use fileData for URIs (HTTP or GCS or Gemini File API)
-                    fileUri: geminiFileUri, // Pass the Gemini File URI here
+                fileData: {
+                    fileUri: geminiFileUri,
                     mimeType: mimeType
                 }
             };
@@ -47,8 +46,9 @@ export default async function handler(req, res) {
 
             // After successful transcription, it's good practice to delete the temporary file from Gemini Files API
             try {
-                const files = genAI.get  FilesService();
-                await files.deleteFile(geminiFileUri); // Delete by URI
+                // FIX: Instantiate FilesService directly for deletion
+                const filesService = new FilesService(process.env.GEMINI_API_KEY);
+                await filesService.deleteFile(geminiFileUri); // Use filesService
                 console.log(`Successfully deleted temporary Gemini file: ${geminiFileUri}`);
             } catch (deleteError) {
                 console.warn(`Failed to delete temporary Gemini file ${geminiFileUri}:`, deleteError);
@@ -61,10 +61,10 @@ export default async function handler(req, res) {
             }
             console.log("Initial Gemini Transcription (Burmese):", finalTranscript);
 
-        } else if (transcript) { // This path is for manually entered text (e.g., from Save to Notion button)
+        } else if (transcript) {
             console.log("Processing manually provided transcript for Notion saving.");
             finalTranscript = transcript;
-        } else { // If neither audio URL nor transcript is provided, it's an invalid request
+        } else {
             console.error("Neither geminiFileUri/mimeType nor transcript was provided.");
             return res.status(400).json({ error: 'No audio or transcript provided for processing.' });
         }
