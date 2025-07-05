@@ -19,19 +19,21 @@ export default async function handler(req, res) {
     }
 
     try {
-        // Now expecting publicHttpUrl instead of gcsUri or base64 audio
+        // FIX: Ensure publicHttpUrl is destructured from req.body
         const { publicHttpUrl, mimeType, transcript } = req.body; 
         let finalTranscript = transcript;
 
+        console.log("transcribe-and-save.js received:", { publicHttpUrl: publicHttpUrl ? 'present' : 'absent', mimeType, transcript: transcript ? 'present' : 'absent' });
+
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" }); 
 
-        if (publicHttpUrl && mimeType) { // Check for publicHttpUrl
+        // The primary path for audio transcription is via publicHttpUrl
+        if (publicHttpUrl && mimeType) {
             console.log(`Received public HTTP URL for transcription: ${publicHttpUrl} with mimeType: ${mimeType}`);
 
-            // Create a Part from the public HTTP URL
             const audioPart = {
-                fileData: { // Use fileData for URIs (HTTP or GCS)
-                    fileUri: publicHttpUrl, // Pass the public HTTP URL here
+                fileData: {
+                    fileUri: publicHttpUrl,
                     mimeType: mimeType
                 }
             };
@@ -49,7 +51,11 @@ export default async function handler(req, res) {
             }
             console.log("Initial Gemini Transcription (Burmese):", finalTranscript);
 
-        } else if (!transcript) {
+        } else if (transcript) { // This path is for manually entered text (e.g., from Save to Notion button)
+            console.log("Processing manually provided transcript for Notion saving.");
+            finalTranscript = transcript;
+        } else { // If neither audio URL nor transcript is provided, it's an invalid request
+            console.error("Neither publicHttpUrl/mimeType nor transcript was provided.");
             return res.status(400).json({ error: 'No audio or transcript provided for processing.' });
         }
         
