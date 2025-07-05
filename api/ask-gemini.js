@@ -14,8 +14,6 @@ export default async function handler(req, res) {
     }
 
     try {
-        // 'question' will be an empty string from the current UI setup
-        // 'transcript' will contain the text from the transcriptOutput box
         const { question, transcript } = req.body; 
 
         if (!transcript || transcript.trim() === '') {
@@ -25,12 +23,15 @@ export default async function handler(req, res) {
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
         let prompt = '';
 
-        // Since the 'askInput' box is removed from the UI, 'question' will always be empty.
-        // We will now interpret the 'transcript' itself as the content Gemini needs to respond to.
-        // This prompt instructs Gemini to analyze the provided Burmese text and provide an answer/analysis.
-        prompt = `Analyze the following Burmese text and provide a comprehensive answer or analysis based on its content. Respond in Burmese. Provide only the answer/analysis, without any introductory or concluding remarks.\n\nText:\n${transcript}`;
-        
-        console.log(`Asking Gemini to analyze transcript content. Transcript length: ${transcript.length}`);
+        if (question && question.trim() !== '') {
+            // If a specific question is somehow provided (e.g., from an older UI version or manual test)
+            prompt = `Given the following Burmese text:\n\n"${transcript}"\n\nAnswer the following question in Burmese. Provide only the answer, without any introductory or concluding remarks:\n\nQuestion: ${question}`;
+        } else {
+            // If no specific question, summarize/analyze the transcript automatically
+            prompt = `Analyze the following Burmese text and provide a concise overview or summary of its main points in Burmese. Provide only the overview/summary, without any introductory or concluding remarks.\n\nText:\n${transcript}`;
+        }
+
+        console.log(`Asking Gemini: "${question || 'General analysis of transcript'}" with transcript context...`);
         const result = await model.generateContent(prompt);
         const response = result.response;
         const answer = response.text().trim();
