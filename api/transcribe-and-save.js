@@ -19,26 +19,26 @@ export default async function handler(req, res) {
     }
 
     try {
-        const { audio, mimeType, transcript } = req.body;
+        // Now expecting gcsUri instead of base64 audio
+        const { gcsUri, mimeType, transcript } = req.body; 
         let finalTranscript = transcript;
 
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" }); 
 
-        if (audio && mimeType) {
-            // Log the size of the incoming audio data
-            const audioSizeKB = (audio.length * 0.75 / 1024).toFixed(2); // Approximate size of base64 decoded data
-            console.log(`Received audio for transcription. MimeType: ${mimeType}, Base64 String Length: ${audio.length}, Estimated Decoded Size: ${audioSizeKB} KB`);
+        if (gcsUri && mimeType) { // Check for gcsUri instead of audio
+            console.log(`Received GCS URI for transcription: ${gcsUri} with mimeType: ${mimeType}`);
 
+            // Create a Part from the GCS URI
             const audioPart = {
-                inlineData: {
-                    data: audio,
+                fileData: { // Use fileData for GCS URIs
+                    fileUri: gcsUri,
                     mimeType: mimeType
                 }
             };
 
             const transcriptionPrompt = `Transcribe the following Burmese audio into accurate, natural-sounding text. Focus on correct spelling, grammar, and punctuation. Ensure the transcription reflects the spoken content precisely.`;
             
-            console.log("Sending audio to Gemini for transcription with enhanced prompt...");
+            console.log(`Sending GCS audio URI ${gcsUri} to Gemini for transcription...`);
             const result = await model.generateContent([transcriptionPrompt, audioPart]);
             const response = result.response;
             finalTranscript = response.text();
@@ -146,14 +146,17 @@ export default async function handler(req, res) {
 
     } catch (error) {
         console.error('API Error:', error);
-        // Provide more specific error messages for common issues
         let errorMessage = 'Failed to process request.';
-        if (error.message.includes('413')) { // Common error for payload too large
-            errorMessage = 'Audio file too large. Please try a shorter recording or lower quality.';
+        if (error.message.includes('413')) {
+            errorMessage = 'Audio file too large for direct upload. GCS upload might have failed.';
         } else if (error.message.includes('timeout')) {
             errorMessage = 'Processing timed out. This can happen with long recordings. Please increase Vercel function timeout.';
         } else if (error.message.includes('API key')) {
             errorMessage = 'Gemini API key is invalid or missing.';
+        } else if (error.message.includes('Signed URL')) {
+            errorMessage = `GCS signed URL error: ${error.message}`;
+        } else if (error.message.includes('upload to GCS')) {
+            errorMessage = `GCS upload failed: ${error.message}`;
         }
         res.status(500).json({ 
             error: errorMessage, 
