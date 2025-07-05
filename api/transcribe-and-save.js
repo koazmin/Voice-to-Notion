@@ -19,31 +19,41 @@ export default async function handler(req, res) {
     }
 
     try {
-        // FIX: Ensure publicHttpUrl is destructured from req.body
-        const { publicHttpUrl, mimeType, transcript } = req.body; 
+        // Now expecting geminiFileUri (from Gemini Files API) or transcript
+        const { geminiFileUri, mimeType, transcript } = req.body; 
         let finalTranscript = transcript;
 
-        console.log("transcribe-and-save.js received:", { publicHttpUrl: publicHttpUrl ? 'present' : 'absent', mimeType, transcript: transcript ? 'present' : 'absent' });
+        console.log("transcribe-and-save.js received:", { geminiFileUri: geminiFileUri ? 'present' : 'absent', mimeType, transcript: transcript ? 'present' : 'absent' });
 
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" }); 
 
-        // The primary path for audio transcription is via publicHttpUrl
-        if (publicHttpUrl && mimeType) {
-            console.log(`Received public HTTP URL for transcription: ${publicHttpUrl} with mimeType: ${mimeType}`);
+        // The primary path for audio transcription is via geminiFileUri
+        if (geminiFileUri && mimeType) {
+            console.log(`Received Gemini File URI for transcription: ${geminiFileUri} with mimeType: ${mimeType}`);
 
             const audioPart = {
-                fileData: {
-                    fileUri: publicHttpUrl,
+                fileData: { // Use fileData for URIs (HTTP or GCS or Gemini File API)
+                    fileUri: geminiFileUri, // Pass the Gemini File URI here
                     mimeType: mimeType
                 }
             };
 
             const transcriptionPrompt = `Transcribe the following Burmese audio into accurate, natural-sounding text. Focus on correct spelling, grammar, and punctuation. Ensure the transcription reflects the spoken content precisely.`;
             
-            console.log(`Sending public HTTP URL ${publicHttpUrl} to Gemini for transcription...`);
+            console.log(`Sending Gemini File URI ${geminiFileUri} to Gemini for transcription...`);
             const result = await model.generateContent([transcriptionPrompt, audioPart]);
             const response = result.response;
             finalTranscript = response.text();
+
+            // After successful transcription, it's good practice to delete the temporary file from Gemini Files API
+            try {
+                const files = genAI.get  FilesService();
+                await files.deleteFile(geminiFileUri); // Delete by URI
+                console.log(`Successfully deleted temporary Gemini file: ${geminiFileUri}`);
+            } catch (deleteError) {
+                console.warn(`Failed to delete temporary Gemini file ${geminiFileUri}:`, deleteError);
+                // Don't block the main response for file deletion errors
+            }
 
             if (!finalTranscript) {
                 console.warn('Gemini returned an empty transcription. This could be due to unclear audio, unsupported format, or an issue with the model processing.');
@@ -55,7 +65,7 @@ export default async function handler(req, res) {
             console.log("Processing manually provided transcript for Notion saving.");
             finalTranscript = transcript;
         } else { // If neither audio URL nor transcript is provided, it's an invalid request
-            console.error("Neither publicHttpUrl/mimeType nor transcript was provided.");
+            console.error("Neither geminiFileUri/mimeType nor transcript was provided.");
             return res.status(400).json({ error: 'No audio or transcript provided for processing.' });
         }
         
@@ -163,8 +173,8 @@ export default async function handler(req, res) {
             errorMessage = `GCS signed URL error: ${error.message}`;
         } else if (error.message.includes('upload to GCS')) {
             errorMessage = `GCS upload failed: ${error.message}`;
-        } else if (error.message.includes('Invalid or unsupported file uri')) {
-            errorMessage = `Gemini could not process the audio URL. Ensure bucket is public and URL is correct.`;
+        } else if (error.message.includes('Invalid or unsupported file uri') || error.message.includes('Failed to upload audio to Gemini Files API')) {
+            errorMessage = `Gemini could not process the audio. Ensure bucket is public, URL is correct, and Gemini Files API upload succeeded.`;
         }
         res.status(500).json({ 
             error: errorMessage, 
