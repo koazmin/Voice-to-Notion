@@ -14,7 +14,7 @@
             flex-direction: column; /* Changed to column to allow footer at bottom */
             justify-content: center;
             align-items: center;
-            min-height: 100vh; /* Changed from 50vh to 100vh for better centering */
+            min-height: 100vh;
             padding: 20px;
             /* Dark Mode Theme Background */
             background-color: #1a202c; /* Dark charcoal */
@@ -108,8 +108,8 @@
     </style>
 </head>
 <body>
-    <div class="container flex flex-col items-center space-y-4"> <!-- Reduced space-y from 6 to 4 -->
-        <h1 class="text-3xl font-bold text-gray-100 mb-2">Voice Note App</h1> <!-- Reduced mb-4 to mb-2 -->
+    <div class="container flex flex-col items-center space-y-4">
+        <h1 class="text-3xl font-bold text-gray-100 mb-2">Voice Note App</h1>
 
         <!-- Status Message Area -->
         <div id="statusMessage" class="text-center text-sm font-medium text-gray-300 min-h-[20px] status-fade-in">
@@ -139,13 +139,12 @@
             <label for="templateSelect" class="text-gray-200 text-lg font-semibold">Template:</label>
             <select id="templateSelect" 
                     class="bg-gray-700 text-white p-2 rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    onchange="applyTemplate()"> <!-- Added onchange event -->
+                    onchange="applyTemplate()">
                 <option value="general">General</option>
                 <option value="meeting_notes">Meeting Notes</option>
                 <option value="brainstorming">Brainstorming</option>
                 <option value="interview">Interview</option>
             </select>
-            <!-- Removed Apply Template Button -->
         </div>
 
         <!-- Transcript Display and Edit Area -->
@@ -186,7 +185,6 @@
         <!-- Ask Gemini Mode -->
         <div class="w-full bg-gray-800 p-4 rounded-xl border border-gray-700 mt-6">
             <h2 class="text-xl font-semibold text-gray-100 mb-3">Ask Gemini (Burmese):</h2>
-            <!-- Removed askInput text box -->
             <button id="askGeminiBtn" disabled
                     class="bg-blue-500 text-white px-6 py-3 rounded-xl shadow-lg opacity-50 cursor-not-allowed hover:bg-blue-600 focus:outline-none focus:ring-4 focus:ring-blue-400/50 flex items-center justify-center w-full min-w-[180px]">
                 Ask Gemini
@@ -218,7 +216,6 @@
         const summarizeBtn = document.getElementById('summarizeBtn');
         const translateBtn = document.getElementById('translateBtn');
         const templateSelect = document.getElementById('templateSelect');
-        // Removed askInput
         const askGeminiBtn = document.getElementById('askGeminiBtn');
         const geminiAnswerOutput = document.getElementById('geminiAnswerOutput');
 
@@ -230,7 +227,6 @@
 
         // Function to update button states and messages
         function updateUI(state, message = '') {
-            // Reset all buttons to disabled and opaque by default
             startRecordBtn.disabled = true;
             stopAndTranscribeBtn.disabled = true;
             copyTextBtn.disabled = true;
@@ -270,10 +266,9 @@
                     statusMessage.textContent = 'Ready to record or type your note.';
                     transcriptOutput.value = '';
                     geminiAnswerOutput.textContent = "Gemini's answer will appear here.";
-                    // Removed askInput.value = '';
                     audioBlob = null;
                     audioChunks = [];
-                    updateButtonStatesBasedOnContent(); // Call this to enable buttons if content exists
+                    updateButtonStatesBasedOnContent();
                     break;
                 case 'recording':
                     stopAndTranscribeBtn.disabled = false;
@@ -291,7 +286,7 @@
                 case 'transcribed_for_review':
                     startRecordBtn.disabled = false;
                     startRecordBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    updateButtonStatesBasedOnContent(); // Call this to enable buttons after transcription
+                    updateButtonStatesBasedOnContent();
                     statusMessage.textContent = 'Transcript ready for review. Edit, copy, or save.';
                     break;
                 case 'saving_to_notion':
@@ -305,7 +300,7 @@
                 case 'error':
                     startRecordBtn.disabled = false;
                     startRecordBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    updateButtonStatesBasedOnContent(); // Call this to enable buttons even on error if content exists
+                    updateButtonStatesBasedOnContent();
                     break;
             }
         }
@@ -313,9 +308,7 @@
         // Helper function to update button states based on text content
         function updateButtonStatesBasedOnContent() {
             const hasTranscriptContent = transcriptOutput.value.trim() !== '';
-            // Removed hasAskInputContent check as askInput is gone
 
-            // Buttons dependent on transcript content
             copyTextBtn.disabled = !hasTranscriptContent;
             saveToNotionBtn.disabled = !hasTranscriptContent;
             summarizeBtn.disabled = !hasTranscriptContent;
@@ -331,10 +324,9 @@
                 saveToNotionBtn.classList.add('opacity-50', 'cursor-not-allowed');
                 summarizeBtn.classList.add('opacity-50', 'cursor-not-allowed');
                 translateBtn.classList.add('opacity-50', 'cursor-not-allowed');
-                templateSelect.value = 'general'; // Reset template if transcript is empty
+                templateSelect.value = 'general';
             }
 
-            // Ask Gemini button now only dependent on transcript content
             askGeminiBtn.disabled = !hasTranscriptContent;
             if (hasTranscriptContent) {
                 askGeminiBtn.classList.remove('opacity-50', 'cursor-not-allowed');
@@ -343,7 +335,52 @@
             }
         }
 
-        // Function to handle transcription logic
+        // --- NEW: Function to handle audio upload to GCS ---
+        async function uploadAudioToGCS(audioBlob) {
+            try {
+                // 1. Get a signed URL from your Vercel API
+                const fileName = `voice-notes/${Date.now()}-${Math.random().toString(36).substring(2, 9)}.webm`; // Unique filename
+                
+                const signedUrlResponse = await fetch('/api/get-signed-url', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fileName: fileName, contentType: audioBlob.type }),
+                });
+                const signedUrlData = await signedUrlResponse.json();
+
+                if (!signedUrlResponse.ok) {
+                    throw new Error(signedUrlData.error || 'Failed to get signed URL for GCS upload.');
+                }
+                const { signedUrl, gcsUri } = signedUrlData;
+
+                console.log('Received signed URL for GCS upload:', signedUrl);
+                console.log('Target GCS URI:', gcsUri);
+
+                // 2. Upload the audio Blob directly to the signed URL
+                const uploadResponse = await fetch(signedUrl, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': audioBlob.type,
+                    },
+                    body: audioBlob,
+                });
+
+                if (!uploadResponse.ok) {
+                    const errorText = await uploadResponse.text();
+                    console.error('GCS direct upload failed:', errorText);
+                    throw new Error(`Failed to upload audio to GCS: ${uploadResponse.status} ${uploadResponse.statusText} - ${errorText}`);
+                }
+
+                console.log('Audio uploaded successfully to GCS:', gcsUri);
+                return gcsUri; // Return the GCS URI
+            } catch (error) {
+                console.error('Error in GCS upload process:', error);
+                throw error; // Re-throw to be caught by calling function
+            }
+        }
+
+
+        // Function to handle transcription logic (updated to use GCS)
         async function handleTranscription() {
             if (!audioBlob || audioBlob.size === 0) {
                 statusMessage.textContent = 'No audio recorded to transcribe.';
@@ -353,43 +390,36 @@
 
             updateUI('transcribing');
 
-            const reader = new FileReader();
-            reader.readAsDataURL(audioBlob);
-            reader.onloadend = async () => {
-                const base64Audio = reader.result.split(',')[1];
+            try {
+                // Upload audio to GCS first
+                const gcsUri = await uploadAudioToGCS(audioBlob);
 
-                try {
-                    const response = await fetch('/api/transcribe-and-save', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            audio: base64Audio,
-                            mimeType: audioBlob.type,
-                        }),
-                    });
+                // Then send the GCS URI to your transcribe-and-save API
+                const response = await fetch('/api/transcribe-and-save', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        gcsUri: gcsUri, // Send the GCS URI instead of base64 audio
+                        mimeType: audioBlob.type, // Still useful to send mimeType
+                    }),
+                });
 
-                    const data = await response.json();
+                const data = await response.json();
 
-                    if (response.ok) {
-                        const transcribedText = data.transcript || 'No transcript returned.';
-                        transcriptOutput.value = transcribedText;
-                        updateUI('transcribed_for_review');
-                    } else {
-                        throw new Error(data.error || 'Unknown error from API.');
-                    }
-                } catch (error) {
-                    console.error('Error sending audio to API for transcription:', error);
-                    transcriptOutput.value = `Error: ${error.message}`;
-                    updateUI('error');
+                if (response.ok) {
+                    const transcribedText = data.transcript || 'No transcript returned.';
+                    transcriptOutput.value = transcribedText;
+                    updateUI('transcribed_for_review');
+                } else {
+                    throw new Error(data.error || 'Unknown error from API.');
                 }
-            };
-            reader.onerror = (error) => {
-                console.error('Error reading audio Blob:', error);
-                statusMessage.textContent = 'Error processing audio for transcription.';
+            } catch (error) {
+                console.error('Error in transcription process (via GCS):', error);
+                transcriptOutput.value = `Error: ${error.message}`;
                 updateUI('error');
-            };
+            }
         }
 
         // Function to process text with Gemini for summary or translation
@@ -438,7 +468,7 @@
 
             if (!textToTransform) {
                 statusMessage.textContent = 'Please enter or transcribe some text to apply a template.';
-                templateSelect.value = 'general'; // Reset dropdown
+                templateSelect.value = 'general';
                 return;
             }
 
@@ -479,11 +509,10 @@
 
         // Function for Ask Gemini mode
         async function askGemini() {
-            // question is now always an empty string from the UI perspective
             const question = ""; 
             const transcriptContext = transcriptOutput.value.trim();
 
-            if (!transcriptContext) { // Only check for transcript content
+            if (!transcriptContext) {
                 statusMessage.textContent = 'Please transcribe some text to ask Gemini about.';
                 return;
             }
@@ -498,8 +527,8 @@
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        question: question, // Empty string
-                        transcript: transcriptContext // Always send transcript as context
+                        question: question,
+                        transcript: transcriptContext
                     }),
                 });
 
@@ -519,13 +548,10 @@
             }
         }
 
-
         // Initialize UI on load
         document.addEventListener('DOMContentLoaded', () => {
             updateUI('ready');
-            // Listen for manual input changes in the textarea
             transcriptOutput.addEventListener('input', updateButtonStatesBasedOnContent);
-            // Removed askInput event listener
         });
 
         // Event listener for starting recording
