@@ -351,10 +351,11 @@
                 if (!signedUrlResponse.ok) {
                     throw new Error(signedUrlData.error || 'Failed to get signed URL for GCS upload.');
                 }
-                const { signedUrl, gcsUri } = signedUrlData;
+                // IMPORTANT: Now receiving publicHttpUrl, not gcsUri
+                const { signedUrl, publicHttpUrl } = signedUrlData; 
 
                 console.log('Received signed URL for GCS upload:', signedUrl);
-                console.log('Target GCS URI:', gcsUri);
+                console.log('Target Public HTTP URL:', publicHttpUrl);
 
                 // 2. Upload the audio Blob directly to the signed URL
                 const uploadResponse = await fetch(signedUrl, {
@@ -371,8 +372,8 @@
                     throw new Error(`Failed to upload audio to GCS: ${uploadResponse.status} ${uploadResponse.statusText} - ${errorText}`);
                 }
 
-                console.log('Audio uploaded successfully to GCS:', gcsUri);
-                return gcsUri; // Return the GCS URI
+                console.log('Audio uploaded successfully to GCS:', publicHttpUrl);
+                return publicHttpUrl; // Return the public HTTP URL
             } catch (error) {
                 console.error('Error in GCS upload process:', error);
                 throw error; // Re-throw to be caught by calling function
@@ -380,7 +381,7 @@
         }
 
 
-        // Function to handle transcription logic (updated to use GCS)
+        // Function to handle transcription logic (updated to use Public HTTP URL)
         async function handleTranscription() {
             if (!audioBlob || audioBlob.size === 0) {
                 statusMessage.textContent = 'No audio recorded to transcribe.';
@@ -391,18 +392,18 @@
             updateUI('transcribing');
 
             try {
-                // Upload audio to GCS first
-                const gcsUri = await uploadAudioToGCS(audioBlob);
+                // Upload audio to GCS first to get the public HTTP URL
+                const publicHttpUrl = await uploadAudioToGCS(audioBlob);
 
-                // Then send the GCS URI to your transcribe-and-save API
+                // Then send the public HTTP URL to your transcribe-and-save API
                 const response = await fetch('/api/transcribe-and-save', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        gcsUri: gcsUri, // Send the GCS URI instead of base64 audio
-                        mimeType: audioBlob.type, // Still useful to send mimeType
+                        publicHttpUrl: publicHttpUrl, // Send the public HTTP URL here
+                        mimeType: audioBlob.type, 
                     }),
                 });
 
@@ -416,7 +417,7 @@
                     throw new Error(data.error || 'Unknown error from API.');
                 }
             } catch (error) {
-                console.error('Error in transcription process (via GCS):', error);
+                console.error('Error in transcription process (via GCS Public URL):', error);
                 transcriptOutput.value = `Error: ${error.message}`;
                 updateUI('error');
             }
@@ -546,7 +547,7 @@
                 geminiAnswerOutput.textContent = `Error: ${error.message}`;
                 updateUI('error');
             }
-        }
+        });
 
         // Initialize UI on load
         document.addEventListener('DOMContentLoaded', () => {
