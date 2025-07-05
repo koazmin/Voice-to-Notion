@@ -19,15 +19,13 @@ export default async function handler(req, res) {
     }
 
     try {
-        // Initialize Google Cloud Storage with service account key
-        // The GCS_SERVICE_ACCOUNT_KEY env var should contain the JSON string
         const serviceAccountKey = JSON.parse(process.env.GCS_SERVICE_ACCOUNT_KEY);
 
         const storage = new Storage({
             projectId: serviceAccountKey.project_id,
             credentials: {
                 client_email: serviceAccountKey.client_email,
-                private_key: serviceAccountKey.private_key.replace(/\\n/g, '\n'), // Replace escaped newlines
+                private_key: serviceAccountKey.private_key.replace(/\\n/g, '\n'),
             },
         });
 
@@ -38,24 +36,27 @@ export default async function handler(req, res) {
         // Generate a V4 signed URL for uploading (PUT method)
         const options = {
             version: 'v4',
-            action: 'write', // allows upload
-            expires: Date.now() + 15 * 60 * 1000, // URL expires in 15 minutes (adjust as needed)
+            action: 'write',
+            expires: Date.now() + 15 * 60 * 1000, // URL expires in 15 minutes
             contentType: contentType,
         };
 
         const [signedUrl] = await file.getSignedUrl(options);
 
-        // Construct the GCS URI that Gemini will use (gs://bucket-name/file-path)
-        const gcsUri = `gs://${bucketName}/${fileName}`;
+        // Construct the public HTTP URL for the GCS object
+        // Format: https://storage.googleapis.com/BUCKET_NAME/OBJECT_NAME
+        const publicHttpUrl = `https://storage.googleapis.com/${bucketName}/${fileName}`;
 
         console.log(`Generated signed URL for ${fileName}: ${signedUrl}`);
+        console.log(`Generated public HTTP URL: ${publicHttpUrl}`);
 
-        res.status(200).json({ signedUrl, gcsUri });
+        // Return both signedUrl (for client upload) and publicHttpUrl (for Gemini)
+        res.status(200).json({ signedUrl, publicHttpUrl });
 
     } catch (error) {
-        console.error('Error generating signed URL:', error);
+        console.error('Error generating signed URL or public URL:', error);
         res.status(500).json({ 
-            error: 'Failed to generate signed URL for GCS upload.', 
+            error: 'Failed to generate signed URL or public URL for GCS upload.', 
             details: error.message,
             stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
