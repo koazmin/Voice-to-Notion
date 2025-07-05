@@ -1,14 +1,17 @@
 {
-  "name": "voice-note-notion-app-backend",
+  "name": "voice2note",
   "version": "1.0.0",
-  "description": "Backend for Voice Note to Notion App",
-  "main": "api/transcribe-and-save.js",
-  "type": "module",
+  "description": "A Voice Note App that transcribes Burmese audio and saves to Notion, with LLM features.",
+  "main": "index.js",
   "scripts": {
     "start": "vercel dev"
   },
+  "keywords": [],
+  "author": "AZM",
+  "license": "ISC",
   "dependencies": {
-    "@google/generative-ai": "^0.14.1",
-    "@notionhq/client": "^2.2.14"
+    "@google-cloud/storage": "^7.x.x",  
+    "@google/generative-ai": "^0.15.0", 
+    "@notionhq/client": "^2.2.15"
   }
 }
