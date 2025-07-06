@@ -1,80 +1,94 @@
 // api/upload-audio-to-gemini.js
+// This code should be placed in a file like `api/upload-audio-to-gemini.js` in your Vercel project's root.
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import fetch from "node-fetch";
+import fetch from 'node-fetch';
+import { GoogleAuth } from 'google-auth-library'; // NEW: For service account authentication
 
-// Initialize Gemini with the correct environment variable
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GENERATIVE_AI_API_KEY);
+// Ensure your environment variables are set in Vercel:
+// GEMINI_API_KEY (Still needed for core model calls in other APIs)
+// GCS_SERVICE_ACCOUNT_KEY (Crucial for this file's authentication)
+// GCS_BUCKET_NAME (Used for fetching from GCS)
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method Not Allowed" });
-  }
-
-  const { publicHttpUrl, mimeType } = req.body;
-
-  if (!publicHttpUrl || !mimeType) {
-    return res
-      .status(400)
-      .json({ error: "publicHttpUrl and mimeType are required." });
-  }
-
-  try {
-    // Optional: Log key prefix for development only
-    if (process.env.NODE_ENV === "development") {
-      console.log(
-        "Gemini Key (partial):",
-        process.env.GOOGLE_GENERATIVE_AI_API_KEY?.slice(0, 8)
-      );
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
-    console.log(`Fetching audio from URL: ${publicHttpUrl}`);
-    const audioResponse = await fetch(publicHttpUrl);
+    const { publicHttpUrl, mimeType } = req.body;
 
-    if (!audioResponse.ok) {
-      const errorText = await audioResponse.text();
-      console.error(
-        "Failed to fetch audio:",
-        audioResponse.status,
-        errorText
-      );
-      throw new Error(`Failed to fetch audio (${audioResponse.status}): ${errorText}`);
+    if (!publicHttpUrl || !mimeType) {
+        return res.status(400).json({ error: 'publicHttpUrl and mimeType are required.' });
     }
 
-    const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
-    console.log(`Audio fetched (${audioBuffer.length} bytes). Uploading...`);
+    try {
+        console.log(`Attempting to fetch audio from GCS: ${publicHttpUrl}`);
+        const audioResponse = await fetch(publicHttpUrl);
 
-    const filesService = genAI.files;
+        if (!audioResponse.ok) {
+            const errorText = await audioResponse.text();
+            console.error('Failed to fetch audio from GCS public URL:', audioResponse.status, errorText);
+            throw new Error(`Failed to fetch audio from GCS (${audioResponse.status}): ${errorText}`);
+        }
 
-    if (!filesService) {
-      console.error("genAI.files is undefined.");
-      throw new Error(
-        "Gemini Files API service not available. Check API key and SDK version."
-      );
+        const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
+        
+        console.log(`Fetched audio (${audioBuffer.length} bytes). Uploading to Gemini Files API...`);
+
+        // NEW: Authenticate using Service Account for Files API
+        const auth = new GoogleAuth({
+            credentials: JSON.parse(process.env.GCS_SERVICE_ACCOUNT_KEY),
+            scopes: ['https://www.googleapis.com/auth/cloud-platform'], // Scope for full Cloud Platform access
+        });
+
+        // Get an authenticated client for the Generative Language API endpoint for Files
+        const authClient = await auth.getClient();
+        const accessToken = (await authClient.getAccessToken()).token;
+
+        // Manually construct the API call to Gemini Files API using fetch with auth header
+        const uploadFilesApiUrl = 'https://generativelanguage.googleapis.com/upload/v1beta/files?uploadType=multipart';
+        
+        const uploadMetadata = {
+            file: {
+                displayName: `voice-note-${Date.now()}`,
+            },
+            mimeType: mimeType,
+        };
+
+        const formData = new FormData();
+        formData.append('metadata', JSON.stringify(uploadMetadata), { contentType: 'application/json' });
+        formData.append('file', new Blob([audioBuffer], { type: mimeType }), `audio_upload.${mimeType.split('/')[1]}`);
+
+        console.log("Sending multipart request to Gemini Files API...");
+        const geminiUploadResponse = await fetch(uploadFilesApiUrl, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                // 'Content-Type': 'multipart/form-data; boundary=' + formData._boundary // node-fetch handles boundary automatically with FormData
+            },
+            body: formData,
+        });
+
+        if (!geminiUploadResponse.ok) {
+            const errorBody = await geminiUploadResponse.text();
+            console.error('Gemini Files API upload failed with status:', geminiUploadResponse.status, errorBody);
+            throw new Error(`Gemini Files API upload failed: ${geminiUploadResponse.status} - ${errorBody}`);
+        }
+
+        const uploadResult = await geminiUploadResponse.json();
+        const geminiFileUri = uploadResult.file.uri;
+        const geminiFileName = uploadResult.file.name;
+
+        console.log(`Audio uploaded to Gemini Files API. File URI: ${geminiFileUri}, Name: ${geminiFileName}`);
+
+        res.status(200).json({ geminiFileUri: geminiFileUri, geminiFileName: geminiFileName });
+
+    } catch (error) {
+        console.error('Error uploading audio to Gemini Files API:', error);
+        res.status(500).json({ 
+            error: 'Failed to upload audio to Gemini Files API.', 
+            details: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
     }
-
-    const uploadResult = await filesService.uploadFile({
-      file: audioBuffer,
-      mimeType: mimeType,
-      displayName: `voice-note-${Date.now()}`,
-    });
-
-    const geminiFile = uploadResult.file;
-
-    console.log(
-      `Upload successful. URI: ${geminiFile.uri}, Name: ${geminiFile.name}`
-    );
-
-    res.status(200).json({
-      geminiFileUri: geminiFile.uri,
-      geminiFileName: geminiFile.name,
-    });
-  } catch (error) {
-    console.error("Error uploading to Gemini:", error);
-    res.status(500).json({
-      error: "Failed to upload audio to Gemini Files API.",
-      details: error.message,
-      stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
-    });
-  }
 }
