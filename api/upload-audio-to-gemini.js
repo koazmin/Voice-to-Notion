@@ -55,18 +55,13 @@ export default async function handler(req, res) {
             },
         };
 
-        // FIX: Use FormData as a class, and construct the file part more explicitly
         const formData = new FormData();
         formData.append('metadata', JSON.stringify(uploadMetadata), { contentType: 'application/json' });
         
-        // Create a Blob-like object from Buffer for FormData (node-fetch compatibility)
-        // This is a common workaround for node-fetch's FormData.append expecting Blob
-        // when dealing with Buffers, even with the 'form-data' library.
-        const fileBlob = new Blob([audioBuffer], { type: mimeType });
+        // FIX: Directly append the audioBuffer. form-data library handles Buffer correctly.
+        // Removed the Blob creation step.
         const filename = `audio_upload.${mimeType.split('/')[1] || 'bin'}`;
-        
-        // Append the file part with its filename and content type
-        formData.append('file', fileBlob, filename); // Use the Blob-like object and filename
+        formData.append('file', audioBuffer, { filename: filename, contentType: mimeType }); // Pass Buffer directly
 
         console.log("Sending multipart request to Gemini Files API...");
 
