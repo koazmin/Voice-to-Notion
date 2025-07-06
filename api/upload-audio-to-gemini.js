@@ -1,16 +1,14 @@
 // api/upload-audio-to-gemini.js
 // This code should be placed in a file like `api/upload-audio-to-gemini.js` in your Vercel project's root.
 
-// FIX: Import FilesService directly and remove GoogleGenerativeAI from this file
-import { FilesService } from "@google/generative-ai"; 
+// FIX: Correct import - only GoogleGenerativeAI is needed here
+import { GoogleGenerativeAI } from "@google/generative-ai"; 
 import fetch from 'node-fetch';
 
 // Ensure your environment variables are set in Vercel:
 // GEMINI_API_KEY
 
-// Note: genAI (GoogleGenerativeAI) instance is not needed in this specific file anymore
-// as we are directly instantiating FilesService.
-// It is still needed in transcribe-and-save.js, process-transcript.js, and ask-gemini.js.
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
@@ -37,14 +35,13 @@ export default async function handler(req, res) {
         
         console.log(`Fetched audio (${audioBuffer.length} bytes). Uploading to Gemini Files API...`);
 
-        // FIX: Directly instantiate FilesService with the API key
-        // This bypasses potential issues with genAI.files being undefined.
-        const filesService = new FilesService(process.env.GEMINI_API_KEY); 
+        // FIX: Access Files API service via genAI.files property
+        const filesService = genAI.files; 
 
-        // Additional check (should not be needed if instantiation above works, but for safety)
+        // This is the critical check. If this is undefined, the API key is the problem.
         if (!filesService) {
-            console.error("CRITICAL: FilesService instantiation failed. Check GEMINI_API_KEY and SDK version.");
-            throw new Error("Gemini Files API service not available after direct instantiation.");
+            console.error("CRITICAL: genAI.files is undefined. Possible causes: Invalid GEMINI_API_KEY, or an outdated @google/generative-ai SDK version.");
+            throw new Error("Gemini Files API service not available. Check API key and SDK version.");
         }
 
         const uploadResult = await filesService.uploadFile({ 
