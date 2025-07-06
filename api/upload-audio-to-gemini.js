@@ -49,18 +49,23 @@ export default async function handler(req, res) {
 
         const uploadFilesApiUrl = 'https://generativelanguage.googleapis.com/upload/v1beta/files?uploadType=multipart';
         
+        // Refinement: Simplify displayName to a fixed prefix + timestamp
+        const simpleDisplayName = `voice_note_${Date.now()}`;
         const uploadMetadata = {
             file: {
-                displayName: `voice-note-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+                displayName: simpleDisplayName,
             },
         };
 
         const formData = new FormData();
         formData.append('metadata', JSON.stringify(uploadMetadata), { contentType: 'application/json' });
         
-        // FIX: Directly append the audioBuffer. form-data library handles Buffer correctly.
-        // Removed the Blob creation step.
-        const filename = `audio_upload.${mimeType.split('/')[1] || 'bin'}`;
+        // Refinement: Ensure a consistent and simple filename for the binary part
+        // Use a generic filename with the correct extension
+        const fileExtension = mimeType.split('/')[1] || 'bin'; // e.g., 'webm', 'mp3'
+        const filename = `audio.${fileExtension}`; // Simple filename like 'audio.webm'
+
+        console.log(`Appending file part - filename: ${filename}, mimeType: ${mimeType}, size: ${audioBuffer.length} bytes`);
         formData.append('file', audioBuffer, { filename: filename, contentType: mimeType }); // Pass Buffer directly
 
         console.log("Sending multipart request to Gemini Files API...");
