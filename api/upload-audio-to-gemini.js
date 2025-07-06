@@ -4,7 +4,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import fetch from 'node-fetch';
 import { GoogleAuth } from 'google-auth-library';
-import FormData from 'form-data'; // Import form-data library
+// Removed: import FormData from 'form-data'; // No longer using form-data library
 
 // Ensure your environment variables are set in Vercel:
 // GEMINI_API_KEY (Still needed for core model calls in other APIs)
@@ -49,36 +49,49 @@ export default async function handler(req, res) {
 
         const uploadFilesApiUrl = 'https://generativelanguage.googleapis.com/upload/v1beta/files?uploadType=multipart';
         
-        // Refinement: Simplify displayName to a fixed prefix + timestamp
-        const simpleDisplayName = `voice_note_${Date.now()}`;
-        const uploadMetadata = {
-            file: {
-                displayName: simpleDisplayName,
-            },
-        };
+        // Manual multipart/form-data construction
+        const boundary = `----WebKitFormBoundary${Math.random().toString(16).slice(2)}`; // A common boundary prefix
+        const filename = `audio.${mimeType.split('/')[1] || 'bin'}`;
+        const displayName = `voice_note_${Date.now()}`;
 
-        const formData = new FormData();
-        formData.append('metadata', JSON.stringify(uploadMetadata), { contentType: 'application/json' });
-        
-        // Refinement: Ensure a consistent and simple filename for the binary part
-        // Use a generic filename with the correct extension
-        const fileExtension = mimeType.split('/')[1] || 'bin'; // e.g., 'webm', 'mp3'
-        const filename = `audio.${fileExtension}`; // Simple filename like 'audio.webm'
+        const metadataPart = Buffer.from(JSON.stringify({
+            file: { displayName: displayName },
+            mimeType: mimeType // MimeType needs to be in the metadata part as well for Gemini Files API
+        }));
 
-        console.log(`Appending file part - filename: ${filename}, mimeType: ${mimeType}, size: ${audioBuffer.length} bytes`);
-        formData.append('file', audioBuffer, { filename: filename, contentType: mimeType }); // Pass Buffer directly
+        // Construct the multipart body
+        const bodyParts = [
+            `--${boundary}`,
+            `Content-Disposition: form-data; name="metadata"`,
+            `Content-Type: application/json; charset=UTF-8`,
+            ``,
+            metadataPart,
+            `--${boundary}`,
+            `Content-Disposition: form-data; name="file"; filename="${filename}"`,
+            `Content-Type: ${mimeType}`,
+            ``,
+            audioBuffer,
+            `--${boundary}--`
+        ];
+
+        // Join parts with CRLF and convert to a single Buffer
+        const requestBody = Buffer.concat(bodyParts.map(part => {
+            if (Buffer.isBuffer(part)) return part;
+            return Buffer.from(`${part}\r\n`);
+        }));
 
         console.log("Sending multipart request to Gemini Files API...");
 
         const headers = {
             'Authorization': `Bearer ${accessToken}`,
-            ...formData.getHeaders(), // This adds 'Content-Type: multipart/form-data; boundary=...'
+            'Content-Type': `multipart/form-data; boundary=${boundary}`, // Set the content type with boundary
+            'Content-Length': requestBody.length, // Explicitly set content length
         };
 
         const geminiUploadResponse = await fetch(uploadFilesApiUrl, {
             method: 'POST',
             headers: headers,
-            body: formData,
+            body: requestBody, // Send the manually constructed Buffer
         });
 
         if (!geminiUploadResponse.ok) {
